@@ -778,24 +778,50 @@ async function removeGold(name) {
 
 // ── Charts / Snapshot ─────────────────────────────────────────────────────
 async function fetchLivePrice(symbol) {
-  // Race multiple CORS proxies — first success wins
   const yahooUrl = `https://query2.finance.yahoo.com/v8/finance/chart/${symbol}?range=1d&interval=1d`;
-  const proxies = [
-    `https://corsproxy.io/?url=${encodeURIComponent(yahooUrl)}`,
-    `https://api.allorigins.win/raw?url=${encodeURIComponent(yahooUrl)}`,
-  ];
 
-  async function tryFetch(url) {
-    const resp = await fetch(url, { signal: AbortSignal.timeout(10000) });
-    if (!resp.ok) throw new Error("not ok");
-    const data = await resp.json();
-    return { price: data.chart.result[0].meta.regularMarketPrice, currency: data.chart.result[0].meta.currency };
+  function proxyUrls(targetUrl) {
+    return [
+      `https://corsproxy.io/?url=${encodeURIComponent(targetUrl)}`,
+      `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`,
+      `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`,
+    ];
   }
 
+  // Strategy 1: Yahoo v8 chart API
   try {
-    // Race all proxies — first to succeed wins
-    return await Promise.any(proxies.map(u => tryFetch(u)));
-  } catch { return null; }
+    return await Promise.any(proxyUrls(yahooUrl).map(async u => {
+      const resp = await fetch(u, { signal: AbortSignal.timeout(8000) });
+      if (!resp.ok) throw new Error("not ok");
+      const data = await resp.json();
+      return { price: data.chart.result[0].meta.regularMarketPrice, currency: data.chart.result[0].meta.currency };
+    }));
+  } catch { /* fall through */ }
+
+  // Strategy 2: Yahoo v8 via query1 host
+  try {
+    const altUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?range=1d&interval=1d`;
+    return await Promise.any(proxyUrls(altUrl).map(async u => {
+      const resp = await fetch(u, { signal: AbortSignal.timeout(8000) });
+      if (!resp.ok) throw new Error("not ok");
+      const data = await resp.json();
+      return { price: data.chart.result[0].meta.regularMarketPrice, currency: data.chart.result[0].meta.currency };
+    }));
+  } catch { /* fall through */ }
+
+  // Strategy 3: Yahoo v6 quote API
+  try {
+    const quoteUrl = `https://query1.finance.yahoo.com/v6/finance/quote?symbols=${symbol}`;
+    return await Promise.any(proxyUrls(quoteUrl).map(async u => {
+      const resp = await fetch(u, { signal: AbortSignal.timeout(8000) });
+      if (!resp.ok) throw new Error("not ok");
+      const data = await resp.json();
+      const q = data.quoteResponse.result[0];
+      return { price: q.regularMarketPrice, currency: q.currency };
+    }));
+  } catch { /* fall through */ }
+
+  return null;
 }
 
 async function fetchUsdCny() {
