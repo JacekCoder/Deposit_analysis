@@ -351,6 +351,53 @@ async function fetchFileBase64(path) {
 }
 
 // ── Stock Search / Autocomplete ───────────────────────────────────────────
+const TICKERS = [
+  ["AAPL","Apple 苹果"],["MSFT","Microsoft 微软"],["GOOGL","Alphabet 谷歌"],["GOOG","Alphabet C"],
+  ["AMZN","Amazon 亚马逊"],["NVDA","NVIDIA 英伟达"],["META","Meta 脸书"],["TSLA","Tesla 特斯拉"],
+  ["BRK.B","Berkshire B 伯克希尔"],["AVGO","Broadcom 博通"],["JPM","JPMorgan 摩根大通"],
+  ["LLY","Eli Lilly 礼来"],["V","Visa"],["UNH","UnitedHealth 联合健康"],["MA","Mastercard 万事达"],
+  ["XOM","Exxon Mobil 埃克森美孚"],["COST","Costco 好市多"],["JNJ","Johnson & Johnson 强生"],
+  ["HD","Home Depot 家得宝"],["PG","Procter & Gamble 宝洁"],["WMT","Walmart 沃尔玛"],
+  ["NFLX","Netflix 奈飞"],["CRM","Salesforce"],["BAC","Bank of America 美国银行"],
+  ["ABBV","AbbVie 艾伯维"],["CVX","Chevron 雪佛龙"],["AMD","AMD 超威半导体"],
+  ["KO","Coca-Cola 可口可乐"],["MRK","Merck 默克"],["PEP","PepsiCo 百事"],
+  ["TMO","Thermo Fisher 赛默飞"],["ADBE","Adobe"],["CSCO","Cisco 思科"],
+  ["ACN","Accenture 埃森哲"],["LIN","Linde 林德"],["MCD","McDonald's 麦当劳"],
+  ["ABT","Abbott 雅培"],["WFC","Wells Fargo 富国银行"],["DHR","Danaher 丹纳赫"],
+  ["INTC","Intel 英特尔"],["DIS","Disney 迪士尼"],["INTU","Intuit"],["PM","Philip Morris"],
+  ["TXN","Texas Instruments 德州仪器"],["QCOM","Qualcomm 高通"],["VZ","Verizon"],
+  ["IBM","IBM"],["GE","GE Aerospace 通用电气"],["CAT","Caterpillar 卡特彼勒"],
+  ["NOW","ServiceNow"],["ISRG","Intuitive Surgical 直觉外科"],["AMGN","Amgen 安进"],
+  ["GS","Goldman Sachs 高盛"],["BKNG","Booking Holdings"],["UBER","Uber"],
+  ["T","AT&T"],["BLK","BlackRock 贝莱德"],["PFE","Pfizer 辉瑞"],["AMAT","Applied Materials 应用材料"],
+  ["PLTR","Palantir"],["BA","Boeing 波音"],["NKE","Nike 耐克"],["SBUX","Starbucks 星巴克"],
+  ["SQ","Block"],["SNAP","Snap"],["ROKU","Roku"],["SHOP","Shopify"],
+  ["COIN","Coinbase"],["RIVN","Rivian"],["LCID","Lucid"],["NIO","NIO 蔚来"],
+  ["XPEV","XPeng 小鹏"],["LI","Li Auto 理想"],["BABA","Alibaba 阿里巴巴"],
+  ["JD","JD.com 京东"],["PDD","PDD Holdings 拼多多"],["BIDU","Baidu 百度"],
+  ["TME","Tencent Music 腾讯音乐"],["BILI","Bilibili 哔哩哔哩"],["ZH","Zhihu 知乎"],
+  ["FUTU","Futu 富途"],["TIGR","UP Fintech 老虎证券"],["MNSO","Miniso 名创优品"],
+  ["SOFI","SoFi"],["HOOD","Robinhood"],["MARA","Marathon Digital"],["MSTR","MicroStrategy"],
+  ["ARM","ARM Holdings"],["SMCI","Super Micro"],["MU","Micron 美光"],
+  ["LRCX","Lam Research 泛林"],["KLAC","KLA Corp"],["MRVL","Marvell"],["ON","ON Semi"],
+  ["PANW","Palo Alto Networks"],["CRWD","CrowdStrike"],["ZS","Zscaler"],["SNOW","Snowflake"],
+  ["DDOG","Datadog"],["NET","Cloudflare"],["ABNB","Airbnb 爱彼迎"],["DASH","DoorDash"],
+  ["PYPL","PayPal"],["SQ","Block/Square"],["SE","Sea Limited"],
+  // ETFs
+  ["QQQ","Invesco QQQ 纳指100 ETF"],["SPY","SPDR S&P 500 标普500 ETF"],
+  ["IVV","iShares S&P 500"],["VOO","Vanguard S&P 500"],["VTI","Vanguard Total Market"],
+  ["IWM","iShares Russell 2000 小盘"],["DIA","SPDR Dow Jones 道琼斯 ETF"],
+  ["ARKK","ARK Innovation"],["ARKG","ARK Genomic"],["ARKF","ARK Fintech"],
+  ["SOXX","iShares Semiconductor 半导体 ETF"],["SMH","VanEck Semiconductor"],
+  ["XLK","Technology Select"],["XLF","Financial Select"],["XLE","Energy Select"],
+  ["XLV","Health Care Select"],["GLD","SPDR Gold 黄金 ETF"],["SLV","iShares Silver 白银 ETF"],
+  ["TLT","iShares 20+ Year Treasury 美债"],["HYG","iShares High Yield 高收益债"],
+  ["VWO","Vanguard Emerging Markets 新兴市场"],["EEM","iShares Emerging Markets"],
+  ["KWEB","KraneShares China Internet 中国互联网"],["FXI","iShares China 中国大盘"],
+  ["MCHI","iShares MSCI China 中国"],["TQQQ","ProShares 3x QQQ 三倍纳指"],
+  ["SQQQ","ProShares -3x QQQ 三倍做空纳指"],["SOXL","Direxion 3x Semiconductor 三倍半导体"],
+];
+
 let searchTimer = null;
 function onSymbolInput() {
   clearTimeout(searchTimer);
@@ -358,36 +405,34 @@ function onSymbolInput() {
   document.getElementById("stock-search-result").classList.remove("show");
   const val = document.getElementById("stock-symbol").value.trim();
   if (val.length < 1) { document.getElementById("stock-dropdown").style.display = "none"; return; }
-  searchTimer = setTimeout(() => searchStockAutocomplete(val), 300);
+  searchTimer = setTimeout(() => searchStockLocal(val), 100);
 }
 
-async function searchStockAutocomplete(query) {
+function searchStockLocal(query) {
   const dd = document.getElementById("stock-dropdown");
-  try {
-    const yahooUrl = `https://query2.finance.yahoo.com/v1/finance/search?q=${query}&quotesCount=8&newsCount=0&listsCount=0`;
-    let resp;
-    try {
-      resp = await fetch(`${CORS_PROXY}${encodeURIComponent(yahooUrl)}`, { signal: AbortSignal.timeout(4000) });
-    } catch {
-      resp = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(yahooUrl)}`, { signal: AbortSignal.timeout(4000) });
-    }
-    if (!resp.ok) { dd.style.display = "none"; return; }
-    const data = await resp.json();
-    const quotes = (data.quotes || []).filter(q => q.quoteType === "EQUITY" || q.quoteType === "ETF");
-    if (!quotes.length) { dd.style.display = "none"; return; }
+  const q = query.toLowerCase();
+  const matches = TICKERS.filter(([sym, name]) =>
+    sym.toLowerCase().includes(q) || name.toLowerCase().includes(q)
+  ).slice(0, 8);
 
-    dd.innerHTML = quotes.map(q =>
-      `<div style="padding:8px 12px;cursor:pointer;border-bottom:1px solid #21262d;color:#c9d1d9;font-size:13px;"
-            onmousedown="selectStock('${q.symbol}', '${(q.longname || q.shortname || q.symbol).replace(/'/g, "\\'")}')">
-        <span style="color:#58a6ff;font-weight:700;">${q.symbol}</span>
-        <span style="color:#8b949e;margin-left:8px;">${q.longname || q.shortname || ""}</span>
-        <span style="color:#6e7681;margin-left:8px;">${q.exchange || ""}</span>
-      </div>`
-    ).join("");
+  if (!matches.length) {
+    dd.innerHTML = `<div style="padding:8px 12px;color:#8b949e;font-size:13px;">未找到匹配，可手动输入正确的美股代码</div>
+      <div style="padding:8px 12px;cursor:pointer;border-top:1px solid #21262d;color:#e3b341;font-size:13px;"
+           onmousedown="selectStock('${query.toUpperCase()}', '${query.toUpperCase()}')">
+        使用 "${query.toUpperCase()}" 作为代码
+      </div>`;
     dd.style.display = "block";
-  } catch {
-    dd.style.display = "none";
+    return;
   }
+
+  dd.innerHTML = matches.map(([sym, name]) =>
+    `<div style="padding:8px 12px;cursor:pointer;border-bottom:1px solid #21262d;color:#c9d1d9;font-size:13px;"
+          onmousedown="selectStock('${sym}', '${name.replace(/'/g, "\\'")}')">
+      <span style="color:#58a6ff;font-weight:700;">${sym}</span>
+      <span style="color:#8b949e;margin-left:8px;">${name}</span>
+    </div>`
+  ).join("");
+  dd.style.display = "block";
 }
 
 function selectStock(symbol, name) {
@@ -396,11 +441,10 @@ function selectStock(symbol, name) {
   stockVerified = true;
   verifiedStockName = name;
   const r = document.getElementById("stock-search-result");
-  r.innerHTML = `<span class="name">${symbol} - ${name}</span>`;
+  r.innerHTML = `<span class="name">✅ ${symbol} - ${name}</span>`;
   r.classList.add("show");
 }
 
-// Close dropdown on click outside
 document.addEventListener("click", (e) => {
   if (!e.target.closest("#stock-symbol") && !e.target.closest("#stock-dropdown")) {
     document.getElementById("stock-dropdown").style.display = "none";
