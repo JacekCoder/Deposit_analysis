@@ -36,17 +36,6 @@
             "cost_price": 598.83
           }
         ]
-      },
-      {
-        "symbol": "AMAT",
-        "name": "Applied Materials 应用材料",
-        "shares": 11,
-        "batches": [
-          {
-            "shares": 11,
-            "cost_price": 223
-          }
-        ]
       }
     ]
   },
