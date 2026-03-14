@@ -240,8 +240,9 @@ h1 { text-align: center; color: #58a6ff; margin-bottom: 8px; font-size: 22px; }
   <!-- Charts Tab -->
   <div id="tab-charts" class="tab-content">
     <button class="btn btn-blue" id="btn-refresh-snapshot" onclick="refreshSnapshot()">Refresh Latest Snapshot</button>
+    <button class="btn btn-primary" id="btn-push-wechat" onclick="triggerWeeklyReport()" style="margin-top:8px;">📊 Send Charts to WeChat</button>
     <div id="charts-area" class="chart-area">
-      <p style="color:#8b949e; text-align:center;">Click above to load latest data</p>
+      <p style="color:#8b949e; text-align:center;">Click Refresh to see live P&L, or Send Charts to push to WeChat</p>
     </div>
   </div>
 </div>
@@ -353,6 +354,8 @@ async function fetchFileBase64(path) {
 let searchTimer = null;
 function onSymbolInput() {
   clearTimeout(searchTimer);
+  stockVerified = false;
+  document.getElementById("stock-search-result").classList.remove("show");
   const val = document.getElementById("stock-symbol").value.trim();
   if (val.length < 1) { document.getElementById("stock-dropdown").style.display = "none"; return; }
   searchTimer = setTimeout(() => searchStockAutocomplete(val), 300);
@@ -411,6 +414,7 @@ async function addStock() {
   const cost = parseFloat(document.getElementById("stock-cost").value);
   const btn = document.getElementById("btn-add-stock");
   if (!symbol) return showToast("Enter a stock symbol", "error");
+  if (!stockVerified) return showToast("请从搜索下拉列表中选择股票，确保代码正确", "error");
   if (!shares || shares <= 0) return showToast("Enter valid shares", "error");
   if (!cost || cost < 0) return showToast("Enter valid cost price", "error");
   btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>Submitting...';
@@ -831,6 +835,25 @@ async function refreshSnapshot() {
 
   area.innerHTML = html;
   btn.disabled = false; btn.textContent = "Refresh Latest Snapshot";
+}
+
+async function triggerWeeklyReport() {
+  const btn = document.getElementById("btn-push-wechat");
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>Triggering...';
+  try {
+    const resp = await fetch(`${API_BASE}/actions/workflows/weekly_report.yml/dispatches`, {
+      method: "POST",
+      headers: { Authorization: `token ${getToken()}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ ref: "main" })
+    });
+    if (resp.ok || resp.status === 204) {
+      showToast("已触发推送！约60秒后企业微信将收到报告和图表");
+    } else {
+      const err = await resp.json();
+      showToast(`触发失败: ${err.message}`, "error");
+    }
+  } catch (e) { showToast(`Error: ${e.message}`, "error"); }
+  finally { btn.disabled = false; btn.textContent = "📊 Send Charts to WeChat"; }
 }
 </script>
 
