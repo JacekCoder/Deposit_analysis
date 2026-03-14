@@ -42,7 +42,7 @@
   "gold": {
     "account_name": "支付宝黄金",
     "currency": "CNY",
-    "total_grams": 13.1705,
+    "total_grams": 1.1705,
     "positions": [
       {
         "name": "浙商银行积存金",
@@ -66,16 +66,6 @@
           {
             "grams_approx": 0.0759,
             "cost_per_gram": 1053.468
-          }
-        ]
-      },
-      {
-        "name": "美联储基金",
-        "grams": 12,
-        "batches": [
-          {
-            "grams": 12,
-            "cost_per_gram": 111
           }
         ]
       }
