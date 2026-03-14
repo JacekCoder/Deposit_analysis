@@ -36,17 +36,6 @@
             "cost_price": 598.83
           }
         ]
-      },
-      {
-        "symbol": "TESILA",
-        "name": "TESILA",
-        "shares": 11,
-        "batches": [
-          {
-            "shares": 11,
-            "cost_price": 2
-          }
-        ]
       }
     ]
   },
