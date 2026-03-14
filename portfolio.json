@@ -49,17 +49,6 @@
         ]
       },
       {
-        "symbol": "PINGGA",
-        "name": "PINGGA",
-        "shares": 12,
-        "batches": [
-          {
-            "shares": 12,
-            "cost_price": 222
-          }
-        ]
-      },
-      {
         "symbol": "TSLASS",
         "name": "TSLASS",
         "shares": 123,
