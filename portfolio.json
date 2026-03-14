@@ -47,6 +47,17 @@
             "cost_price": 176.3
           }
         ]
+      },
+      {
+        "symbol": "TSLA",
+        "name": "TSLA",
+        "shares": 1.5,
+        "batches": [
+          {
+            "shares": 1.5,
+            "cost_price": 188
+          }
+        ]
       }
     ]
   },
