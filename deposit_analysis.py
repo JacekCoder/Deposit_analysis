@@ -7,7 +7,7 @@ a daily summary via PushPlus to WeChat.
 Weekly mode (--weekly): generates P&L trend charts and sends them on Saturday.
 
 Required env vars (GitHub Secrets):
-  PUSHPLUS_TOKEN  - PushPlus user token
+  WECHAT_WEBHOOK  - WeChat Work bot webhook URL
 """
 
 import base64
@@ -33,7 +33,6 @@ HISTORY_FILE = os.path.join(BASE_DIR, "history.json")
 BEIJING_TZ = timezone(timedelta(hours=8))
 
 # ── API URLs ─────────────────────────────────────────────────────────────────
-PUSHPLUS_API_URL = "https://www.pushplus.plus/send"
 
 # Sina Finance for gold price (AU9999 in CNY/gram)
 SINA_GOLD_URL = "https://hq.sinajs.cn/list=hf_GC"
@@ -598,56 +597,73 @@ def save_chart_files(history: list[dict]) -> list[str]:
     return _render_charts(history, save_to_files=True)
 
 
-# ── PushPlus Notification ────────────────────────────────────────────────────
+# ── WeChat Work Bot Notification ─────────────────────────────────────────────
 
-def send_pushplus(title: str, content: str, token: str,
-                  template: str = "txt") -> bool:
-    """Send a WeChat message via PushPlus."""
-    payload = {
-        "token": token,
-        "title": title,
-        "content": content if template == "html" else content.replace("\n", "<br>"),
-        "template": template,
-    }
+def send_wechat_text(content: str, webhook_url: str) -> bool:
+    """Send a text message via WeChat Work bot webhook."""
+    payload = {"msgtype": "text", "text": {"content": content}}
     try:
-        resp = requests.post(PUSHPLUS_API_URL, json=payload, timeout=15)
+        resp = requests.post(webhook_url, json=payload, timeout=15)
         resp.raise_for_status()
         data = resp.json()
-        if data.get("code") == 200:
-            print("PushPlus notification sent successfully.")
+        if data.get("errcode") == 0:
+            print("WeChat Work notification sent successfully.")
             return True
-        print(f"PushPlus API returned: {data}", file=sys.stderr)
+        print(f"WeChat Work API returned: {data}", file=sys.stderr)
         return False
     except requests.RequestException as exc:
-        print(f"Failed to send PushPlus notification: {exc}", file=sys.stderr)
+        print(f"Failed to send WeChat Work notification: {exc}", file=sys.stderr)
+        return False
+
+
+def send_wechat_image(image_path: str, webhook_url: str) -> bool:
+    """Send an image via WeChat Work bot webhook (base64 + md5)."""
+    import hashlib
+    with open(image_path, "rb") as f:
+        image_data = f.read()
+    b64 = base64.b64encode(image_data).decode()
+    md5 = hashlib.md5(image_data).hexdigest()
+    payload = {"msgtype": "image", "image": {"base64": b64, "md5": md5}}
+    try:
+        resp = requests.post(webhook_url, json=payload, timeout=30)
+        resp.raise_for_status()
+        data = resp.json()
+        if data.get("errcode") == 0:
+            print(f"Image sent: {image_path}")
+            return True
+        print(f"WeChat Work image API returned: {data}", file=sys.stderr)
+        return False
+    except requests.RequestException as exc:
+        print(f"Failed to send image: {exc}", file=sys.stderr)
         return False
 
 
 def send_weekly_report(stock_perf: dict, gold_perf: dict, portfolio: dict,
                        usd_cny: float, sgd_cny: float, gold_price: float,
-                       token: str) -> bool:
-    """Generate weekly charts, save as files, and send text report via PushPlus."""
+                       webhook_url: str) -> bool:
+    """Generate weekly charts and send report + images via WeChat Work bot."""
     history = load_history()
     if not history:
         print("No history data, skipping weekly report.", file=sys.stderr)
         return False
 
-    # Save chart images to files (will be committed by workflow)
+    # Save chart images to files
     paths = save_chart_files(history)
     for p in paths:
         print(f"Chart saved: {p}")
 
-    # Send text-only report (PushPlus has size limits, base64 images are too large)
+    # Send text report
     text_report = format_report(stock_perf, gold_perf, portfolio,
                                 usd_cny, sgd_cny, gold_price)
-
-    # Add chart viewing hint
-    repo = os.environ.get("GITHUB_REPOSITORY", "JacekCoder/Deposit_analysis")
-    pages_url = f"https://{repo.split('/')[0].lower()}.github.io/{repo.split('/')[1]}/"
-    content = f"📈 本周P&L图表已生成，请访问:\n{pages_url}\n\n{text_report}"
-
     now_date = datetime.now(BEIJING_TZ).strftime("%Y-%m-%d")
-    return send_pushplus(f"📈 Weekly Report {now_date}", content, token)
+    success = send_wechat_text(f"📈 Weekly Report {now_date}\n\n{text_report}",
+                               webhook_url)
+
+    # Send chart images
+    for p in paths:
+        send_wechat_image(p, webhook_url)
+
+    return success
 
 
 # ── Main ─────────────────────────────────────────────────────────────────────
@@ -695,21 +711,22 @@ def main() -> int:
             print(f"Chart saved: {p}")
         return 0
 
-    # Send PushPlus notification
-    token = os.environ.get("PUSHPLUS_TOKEN", "")
-    if not token:
+    # Send WeChat Work bot notification
+    webhook_url = os.environ.get("WECHAT_WEBHOOK", "")
+    if not webhook_url:
         print(
-            "Warning: PUSHPLUS_TOKEN not set. Skipping notification.",
+            "Warning: WECHAT_WEBHOOK not set. Skipping notification.",
             file=sys.stderr,
         )
         return 0
 
     if weekly_mode:
         success = send_weekly_report(stock_perf, gold_perf, portfolio,
-                                     usd_cny, sgd_cny, gold_price, token)
+                                     usd_cny, sgd_cny, gold_price, webhook_url)
     else:
         now_date = datetime.now(BEIJING_TZ).strftime("%Y-%m-%d")
-        success = send_pushplus(f"📊 每日资产报告 {now_date}", report, token)
+        success = send_wechat_text(f"📊 每日资产报告 {now_date}\n\n{report}",
+                                   webhook_url)
 
     if not success:
         print("Warning: notification failed, but data was saved.", file=sys.stderr)

@@ -28,7 +28,7 @@ jobs:
 
       - name: Run deposit analysis and send WeChat notification
         env:
-          PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
+          WECHAT_WEBHOOK: ${{ secrets.WECHAT_WEBHOOK }}
         run: python deposit_analysis.py
 
       - name: Commit history data
