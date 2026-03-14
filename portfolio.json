@@ -47,6 +47,17 @@
             "cost_price": 12
           }
         ]
+      },
+      {
+        "symbol": "MA",
+        "name": "Mastercard 万事达",
+        "shares": 12,
+        "batches": [
+          {
+            "shares": 12,
+            "cost_price": 121
+          }
+        ]
       }
     ]
   },
