@@ -593,11 +593,6 @@ def _render_charts(history: list[dict],
     return results
 
 
-def generate_weekly_charts(history: list[dict]) -> list[str]:
-    """Generate cumulative P&L charts. Returns base64-encoded PNGs."""
-    return _render_charts(history, save_to_files=False)
-
-
 def save_chart_files(history: list[dict], chart_prefix: str = "chart") -> list[str]:
     """Generate cumulative P&L charts saved to local files."""
     return _render_charts(history, save_to_files=True, chart_prefix=chart_prefix)
