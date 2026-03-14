@@ -50,23 +50,32 @@ def load_portfolio(path: str) -> dict:
 
 # ── Stock Prices (yfinance) ──────────────────────────────────────────────────
 
-def fetch_stock_prices(symbols: list[str]) -> dict[str, float]:
-    """Fetch latest closing prices for US stock symbols."""
+def fetch_stock_prices(symbols: list[str], max_retries: int = 3) -> dict[str, float]:
+    """Fetch latest closing prices for US stock symbols with retries."""
     prices: dict[str, float] = {}
     if not symbols:
         return prices
-    tickers = yf.Tickers(" ".join(symbols))
-    for symbol in symbols:
-        try:
-            hist = tickers.tickers[symbol].history(period="2d")
-            if not hist.empty:
-                prices[symbol] = float(hist["Close"].iloc[-1])
-            else:
-                print(f"Warning: no price data for {symbol}", file=sys.stderr)
+    for attempt in range(1, max_retries + 1):
+        failed = [s for s in symbols if s not in prices or prices[s] == 0.0]
+        if not failed:
+            break
+        if attempt > 1:
+            wait = attempt * 5
+            print(f"Retry {attempt}/{max_retries}: waiting {wait}s before retrying {', '.join(failed)}...")
+            import time
+            time.sleep(wait)
+        tickers = yf.Tickers(" ".join(failed))
+        for symbol in failed:
+            try:
+                hist = tickers.tickers[symbol].history(period="2d")
+                if not hist.empty:
+                    prices[symbol] = float(hist["Close"].iloc[-1])
+                else:
+                    print(f"Warning: no price data for {symbol} (attempt {attempt})", file=sys.stderr)
+                    prices[symbol] = 0.0
+            except (TypeError, ValueError, KeyError, IndexError, OSError) as exc:
+                print(f"Warning: could not fetch price for {symbol} (attempt {attempt}): {exc}", file=sys.stderr)
                 prices[symbol] = 0.0
-        except (TypeError, ValueError, KeyError, IndexError, OSError) as exc:
-            print(f"Warning: could not fetch price for {symbol}: {exc}", file=sys.stderr)
-            prices[symbol] = 0.0
     return prices
 
 
@@ -715,6 +724,12 @@ def main() -> int:
     if symbols:
         print(f"Fetching stock prices for: {', '.join(symbols)}")
     stock_prices = fetch_stock_prices(symbols)
+
+    # Abort if any stock price failed after retries
+    failed_symbols = [s for s in symbols if stock_prices.get(s, 0) == 0.0]
+    if failed_symbols:
+        print(f"Error: failed to fetch prices for {', '.join(failed_symbols)} after retries. Aborting.", file=sys.stderr)
+        return 1
 
     # Fetch gold price
     print("Fetching gold price...")
