@@ -32,7 +32,8 @@ h1 { text-align: center; color: #58a6ff; margin-bottom: 8px; font-size: 22px; }
   width: 100%; padding: 10px 12px; background: #161b22; border: 1px solid #30363d;
   border-radius: 8px; color: #c9d1d9; font-size: 15px; outline: none;
 }
-.form-group input:focus { border-color: #1f6feb; }
+.form-group input:focus, .form-group select:focus { border-color: #1f6feb; }
+.form-group select { cursor: pointer; appearance: auto; }
 .form-group .hint { font-size: 11px; color: #6e7681; margin-top: 4px; }
 
 .row { display: flex; gap: 12px; }
@@ -117,8 +118,9 @@ h1 { text-align: center; color: #58a6ff; margin-bottom: 8px; font-size: 22px; }
 
   <div class="tabs">
     <div class="tab active" onclick="switchTab('stock')">Buy Stock</div>
+    <div class="tab" onclick="switchTab('sell')">Sell Stock</div>
     <div class="tab" onclick="switchTab('gold')">Buy Gold</div>
-    <div class="tab" onclick="switchTab('view')">View Holdings</div>
+    <div class="tab" onclick="switchTab('view')">View</div>
   </div>
 
   <!-- Stock Tab -->
@@ -144,6 +146,35 @@ h1 { text-align: center; color: #58a6ff; margin-bottom: 8px; font-size: 22px; }
 
     <button class="btn btn-primary" id="btn-add-stock" onclick="addStock()">
       Add Stock Position
+    </button>
+  </div>
+
+  <!-- Sell Stock Tab -->
+  <div id="tab-sell" class="tab-content">
+    <div class="form-group">
+      <label>Select Stock to Sell</label>
+      <select id="sell-symbol" onchange="onSellSymbolChange()">
+        <option value="">-- Load holdings first --</option>
+      </select>
+      <div class="hint">Your current positions will be loaded automatically</div>
+    </div>
+    <div id="sell-info" class="search-result"></div>
+
+    <div class="row">
+      <div class="form-group">
+        <label>Shares to Sell</label>
+        <input type="number" id="sell-shares" step="0.01" min="0.01" placeholder="e.g. 0.5">
+      </div>
+      <div class="form-group">
+        <label>Sell Price (USD)</label>
+        <input type="number" id="sell-price" step="0.01" min="0" placeholder="e.g. 195.00">
+      </div>
+    </div>
+
+    <div id="sell-pnl-preview" class="search-result" style="border-color:#f39c12;"></div>
+
+    <button class="btn btn-danger" id="btn-sell-stock" onclick="sellStock()">
+      Sell Stock
     </button>
   </div>
 
@@ -210,13 +241,15 @@ function saveToken() {
 })();
 
 // ── Tab Switching ──────────────────────────────────────────────────────────
+const TAB_IDS = ["stock", "sell", "gold", "view"];
 function switchTab(tab) {
   document.querySelectorAll(".tab").forEach((t, i) => {
-    t.classList.toggle("active", ["stock","gold","view"][i] === tab);
+    t.classList.toggle("active", TAB_IDS[i] === tab);
   });
   document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
   document.getElementById(`tab-${tab}`).classList.add("active");
   if (tab === "view") loadPortfolio();
+  if (tab === "sell") loadSellDropdown();
 }
 
 // ── Toast ──────────────────────────────────────────────────────────────────
@@ -527,6 +560,184 @@ async function removeGold(name) {
     loadPortfolio();
   } catch (e) {
     showToast(`Error: ${e.message}`, "error");
+  }
+}
+
+// ── Sell Stock ─────────────────────────────────────────────────────────────
+async function loadSellDropdown() {
+  const select = document.getElementById("sell-symbol");
+  const infoDiv = document.getElementById("sell-info");
+  const pnlDiv = document.getElementById("sell-pnl-preview");
+  select.innerHTML = '<option value="">Loading...</option>';
+  infoDiv.classList.remove("show");
+  pnlDiv.classList.remove("show");
+
+  try {
+    await fetchPortfolio();
+    const positions = currentPortfolio.stocks.positions;
+    if (positions.length === 0) {
+      select.innerHTML = '<option value="">No stock holdings</option>';
+      return;
+    }
+    select.innerHTML = '<option value="">-- Select a stock --</option>';
+    for (const pos of positions) {
+      const opt = document.createElement("option");
+      opt.value = pos.symbol;
+      opt.textContent = `${pos.symbol} (${pos.name}) - ${pos.shares} shares`;
+      select.appendChild(opt);
+    }
+  } catch (e) {
+    select.innerHTML = '<option value="">Error loading</option>';
+    showToast(`Error: ${e.message}`, "error");
+  }
+}
+
+function onSellSymbolChange() {
+  const symbol = document.getElementById("sell-symbol").value;
+  const infoDiv = document.getElementById("sell-info");
+  const pnlDiv = document.getElementById("sell-pnl-preview");
+  pnlDiv.classList.remove("show");
+
+  if (!symbol || !currentPortfolio) {
+    infoDiv.classList.remove("show");
+    return;
+  }
+
+  const pos = currentPortfolio.stocks.positions.find(p => p.symbol === symbol);
+  if (!pos) return;
+
+  const totalCost = pos.batches.reduce((s, b) => s + b.shares * b.cost_price, 0);
+  const totalShares = pos.batches.reduce((s, b) => s + b.shares, 0);
+  const avgCost = totalShares > 0 ? (totalCost / totalShares) : 0;
+
+  let batchInfo = pos.batches.map((b, i) =>
+    `Batch ${i+1}: ${b.shares} shares @ $${b.cost_price.toFixed(2)}`
+  ).join("<br>");
+
+  infoDiv.innerHTML =
+    `<span class="name">${pos.symbol} - ${pos.name}</span><br>` +
+    `<span style="color:#c9d1d9;">Total: ${pos.shares} shares | Avg cost: $${avgCost.toFixed(2)}</span><br>` +
+    `<span style="color:#8b949e;font-size:12px;">${batchInfo}</span>`;
+  infoDiv.classList.add("show");
+
+  // Preview P&L when sell price is entered
+  document.getElementById("sell-shares").oninput = previewSellPnL;
+  document.getElementById("sell-price").oninput = previewSellPnL;
+}
+
+function previewSellPnL() {
+  const symbol = document.getElementById("sell-symbol").value;
+  const sellShares = parseFloat(document.getElementById("sell-shares").value);
+  const sellPrice = parseFloat(document.getElementById("sell-price").value);
+  const pnlDiv = document.getElementById("sell-pnl-preview");
+
+  if (!symbol || !sellShares || !sellPrice || !currentPortfolio) {
+    pnlDiv.classList.remove("show");
+    return;
+  }
+
+  const pos = currentPortfolio.stocks.positions.find(p => p.symbol === symbol);
+  if (!pos) return;
+
+  if (sellShares > pos.shares + 0.000001) {
+    pnlDiv.innerHTML = `<span class="error">Cannot sell ${sellShares} shares (only ${pos.shares} held)</span>`;
+    pnlDiv.classList.add("show");
+    return;
+  }
+
+  // Calculate cost basis of sold shares (FIFO)
+  let remaining = sellShares;
+  let costBasis = 0;
+  for (const b of pos.batches) {
+    if (remaining <= 0) break;
+    const sold = Math.min(remaining, b.shares);
+    costBasis += sold * b.cost_price;
+    remaining -= sold;
+  }
+
+  const revenue = sellShares * sellPrice;
+  const pnl = revenue - costBasis;
+  const pnlPct = costBasis > 0 ? (pnl / costBasis * 100) : 0;
+  const sign = pnl >= 0 ? "+" : "";
+  const color = pnl >= 0 ? "#3fb950" : "#f85149";
+
+  pnlDiv.innerHTML =
+    `<span style="color:#8b949e;">Sell Preview (FIFO):</span><br>` +
+    `<span style="color:#c9d1d9;">Revenue: $${revenue.toFixed(2)} | Cost: $${costBasis.toFixed(2)}</span><br>` +
+    `<span style="color:${color};font-weight:700;font-size:16px;">P&L: ${sign}$${pnl.toFixed(2)} (${sign}${pnlPct.toFixed(2)}%)</span>`;
+  pnlDiv.classList.add("show");
+}
+
+async function sellStock() {
+  const symbol = document.getElementById("sell-symbol").value;
+  const sellShares = parseFloat(document.getElementById("sell-shares").value);
+  const sellPrice = parseFloat(document.getElementById("sell-price").value);
+  const btn = document.getElementById("btn-sell-stock");
+
+  if (!symbol) return showToast("Please select a stock", "error");
+  if (!sellShares || sellShares <= 0) return showToast("Please enter shares to sell", "error");
+  if (!sellPrice || sellPrice < 0) return showToast("Please enter sell price", "error");
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Selling...';
+
+  try {
+    await fetchPortfolio();
+    const pos = currentPortfolio.stocks.positions.find(p => p.symbol === symbol);
+    if (!pos) throw new Error(`${symbol} not found in portfolio`);
+    if (sellShares > pos.shares + 0.000001) {
+      throw new Error(`Cannot sell ${sellShares} shares (only ${pos.shares} held)`);
+    }
+
+    // Deduct shares using FIFO
+    let remaining = sellShares;
+    const newBatches = [];
+    for (const b of pos.batches) {
+      if (remaining <= 0) {
+        newBatches.push(b);
+        continue;
+      }
+      if (remaining >= b.shares - 0.000001) {
+        // Entire batch consumed
+        remaining -= b.shares;
+      } else {
+        // Partial batch
+        newBatches.push({
+          shares: parseFloat((b.shares - remaining).toFixed(6)),
+          cost_price: b.cost_price
+        });
+        remaining = 0;
+      }
+    }
+
+    pos.batches = newBatches;
+    pos.shares = parseFloat(
+      newBatches.reduce((s, b) => s + b.shares, 0).toFixed(6)
+    );
+
+    // Remove position entirely if no shares left
+    if (pos.shares <= 0.000001) {
+      currentPortfolio.stocks.positions = currentPortfolio.stocks.positions.filter(
+        p => p.symbol !== symbol
+      );
+    }
+
+    await savePortfolio(
+      `Sell stock: ${sellShares} shares of ${symbol} @ $${sellPrice}`
+    );
+    showToast(`Sold ${sellShares} shares of ${symbol} @ $${sellPrice}`);
+
+    // Reset form
+    document.getElementById("sell-shares").value = "";
+    document.getElementById("sell-price").value = "";
+    document.getElementById("sell-info").classList.remove("show");
+    document.getElementById("sell-pnl-preview").classList.remove("show");
+    loadSellDropdown();
+  } catch (e) {
+    showToast(`Error: ${e.message}`, "error");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Sell Stock";
   }
 }
 </script>
