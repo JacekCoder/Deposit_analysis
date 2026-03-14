@@ -118,7 +118,6 @@ h1 { text-align: center; color: #58a6ff; margin-bottom: 8px; font-size: 22px; }
 <div class="container">
   <h1>Portfolio Manager</h1>
   <p class="subtitle">Manage your stock, gold and cash holdings</p>
-  <div id="profile-switcher" style="text-align:center;margin-bottom:12px;font-size:12px;color:#8b949e;"></div>
 
   <!-- Token input -->
   <div id="token-bar" class="form-group" style="margin-bottom:20px;">
@@ -277,15 +276,6 @@ async function loadProfiles() {
   // Update page title
   document.querySelector("h1").textContent = PROFILE.label;
   document.title = PROFILE.label;
-  // Render profile switcher links
-  if (profilesConfig) {
-    const links = Object.entries(profilesConfig).map(([key, cfg]) => {
-      if (key === PROFILE_KEY) return `<strong style="color:#58a6ff;">${cfg.label}</strong>`;
-      const url = key === "default" ? "?" : `?profile=${key}`;
-      return `<a href="${url}" style="color:#8b949e;text-decoration:underline;">${cfg.label}</a>`;
-    });
-    document.getElementById("profile-switcher").innerHTML = links.join(" | ");
-  }
 }
 
 let currentPortfolio = null;
