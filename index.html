@@ -118,6 +118,9 @@ h1 { text-align: center; color: #58a6ff; margin-bottom: 8px; font-size: 22px; }
 <div class="container">
   <h1>Portfolio Manager</h1>
   <p class="subtitle">Manage your stock, gold and cash holdings</p>
+  <div id="profile-link" style="text-align:center;margin-bottom:12px;display:none;">
+    <a href="?profile=mapeiying" style="color:#8b949e;font-size:12px;text-decoration:underline;">Switch to Mapeiying Investment</a>
+  </div>
 
   <!-- Token input -->
   <div id="token-bar" class="form-group" style="margin-bottom:20px;">
@@ -276,6 +279,10 @@ async function loadProfiles() {
   // Update page title
   document.querySelector("h1").textContent = PROFILE.label;
   document.title = PROFILE.label;
+  // Show switch link only on default profile
+  if (PROFILE_KEY === "default") {
+    document.getElementById("profile-link").style.display = "block";
+  }
 }
 
 let currentPortfolio = null;
