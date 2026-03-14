@@ -143,7 +143,7 @@ h1 { text-align: center; color: #58a6ff; margin-bottom: 8px; font-size: 22px; }
       <label>Stock Symbol</label>
       <input type="text" id="stock-symbol" placeholder="e.g. AAPL, TSLA, NVDA"
              oninput="this.value=this.value.toUpperCase()" onblur="searchStock()">
-      <div class="hint">Enter a US stock ticker and click outside to verify</div>
+      <div class="hint">必须填yfinance支持的美股代码（如AAPL、NVDA、QQQ），填错会导致价格为0</div>
     </div>
     <div id="stock-search-result" class="info-box"></div>
     <div class="row">
@@ -188,7 +188,8 @@ h1 { text-align: center; color: #58a6ff; margin-bottom: 8px; font-size: 22px; }
   <div id="tab-gold" class="tab-content">
     <div class="form-group">
       <label>Gold Product Name</label>
-      <input type="text" id="gold-name" placeholder="e.g. Zheshang Bank Gold">
+      <input type="text" id="gold-name" placeholder="e.g. 浙商银行积存金">
+      <div class="hint">自定义名称，不需要对应API，黄金价格统一用国际金价计算</div>
     </div>
     <div class="row">
       <div class="form-group">

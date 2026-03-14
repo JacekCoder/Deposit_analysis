@@ -491,7 +491,11 @@ def _build_stock_chart(data: list[dict], date_nums: list[float],
     for d in data:
         all_symbols.update(d.get("stocks", {}).keys())
 
-    colors = ["#e94560", "#53d8fb", "#f8b500", "#6c5ce7", "#00b894", "#fd79a8"]
+    colors = [
+        "#e94560", "#53d8fb", "#f8b500", "#6c5ce7", "#00b894", "#fd79a8",
+        "#55efc4", "#a29bfe", "#ff7675", "#74b9ff", "#ffeaa7", "#dfe6e9",
+        "#fab1a0", "#81ecec", "#636e72", "#e17055", "#00cec9", "#d63031",
+    ]
     for i, symbol in enumerate(sorted(all_symbols)):
         pnl_values = [d.get("stocks", {}).get(symbol, {}).get("pnl_cny", 0)
                       for d in data]
