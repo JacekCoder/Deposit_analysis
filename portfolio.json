@@ -36,17 +36,6 @@
             "cost_price": 598.83
           }
         ]
-      },
-      {
-        "symbol": "AAPL",
-        "name": "Apple 苹果",
-        "shares": 12,
-        "batches": [
-          {
-            "shares": 12,
-            "cost_price": 111
-          }
-        ]
       }
     ]
   },
