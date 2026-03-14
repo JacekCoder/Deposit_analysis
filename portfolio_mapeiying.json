@@ -1,18 +1,79 @@
 {
   "stocks": {
-    "account_name": "Mapeiying 美股账户",
+    "account_name": "Moomoo 美股账户",
     "currency": "USD",
-    "positions": []
+    "positions": [
+      {
+        "symbol": "NVDA",
+        "name": "英伟达 NVIDIA",
+        "shares": 1.9,
+        "batches": [
+          {
+            "shares": 1,
+            "cost_price": 178.4497
+          },
+          {
+            "shares": 0.7,
+            "cost_price": 178.76
+          },
+          {
+            "shares": 0.2,
+            "cost_price": 179.25
+          }
+        ]
+      },
+      {
+        "symbol": "QQQ",
+        "name": "纳指100 Invesco QQQ",
+        "shares": 0.95,
+        "batches": [
+          {
+            "shares": 0.25,
+            "cost_price": 604.96
+          },
+          {
+            "shares": 0.7,
+            "cost_price": 598.83
+          }
+        ]
+      }
+    ]
   },
   "gold": {
-    "account_name": "Mapeiying 黄金",
+    "account_name": "支付宝黄金",
     "currency": "CNY",
-    "total_grams": 0,
-    "positions": []
+    "total_grams": 1.1705,
+    "positions": [
+      {
+        "name": "浙商银行积存金",
+        "grams": 1.021,
+        "batches": [
+          {
+            "grams": 1.021,
+            "cost_per_gram": 1194.91
+          }
+        ]
+      },
+      {
+        "name": "国泰黄金ETF联接C",
+        "grams": 0.1495,
+        "weekly_invest_amount": 80,
+        "batches": [
+          {
+            "grams_approx": 0.0736,
+            "cost_per_gram": 1087.84
+          },
+          {
+            "grams_approx": 0.0759,
+            "cost_per_gram": 1053.468
+          }
+        ]
+      }
+    ]
   },
   "cash": {
     "SGD": 0,
-    "CNY": 0
+    "CNY": 232
   },
   "monthly_budget_cny": 5000
 }

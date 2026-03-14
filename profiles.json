@@ -4,7 +4,7 @@
     "portfolio_file": "portfolio.json",
     "history_file": "history.json",
     "chart_prefix": "chart",
-    "webhook_url": ""
+    "webhook_url": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=3dc91e65-0af4-4893-9b14-f28a8cf4fe15"
   },
   "mapeiying": {
     "label": "Mapeiying Investment",
