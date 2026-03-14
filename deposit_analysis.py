@@ -26,6 +26,7 @@ import requests
 import yfinance as yf
 
 BASE_DIR = os.path.dirname(__file__)
+PROFILES_FILE = os.path.join(BASE_DIR, "profiles.json")
 PORTFOLIO_FILE = os.path.join(BASE_DIR, "portfolio.json")
 HISTORY_FILE = os.path.join(BASE_DIR, "history.json")
 
@@ -542,7 +543,8 @@ def _build_gold_chart(data: list[dict], date_nums: list[float],
 
 
 def _render_charts(history: list[dict],
-                   save_to_files: bool = False) -> list[str]:
+                   save_to_files: bool = False,
+                   chart_prefix: str = "chart") -> list[str]:
     """Core chart renderer. Uses ALL history data (cumulative).
 
     Returns base64-encoded PNGs (save_to_files=False) or file paths
@@ -575,7 +577,7 @@ def _render_charts(history: list[dict],
 
         if save_to_files:
             suffix = "stocks" if chart_type == "stock" else "gold"
-            path = os.path.join(BASE_DIR, f"chart_{suffix}.png")
+            path = os.path.join(BASE_DIR, f"{chart_prefix}_{suffix}.png")
             fig.savefig(path, dpi=150, bbox_inches="tight",
                         facecolor=fig.get_facecolor())
             results.append(path)
@@ -596,9 +598,9 @@ def generate_weekly_charts(history: list[dict]) -> list[str]:
     return _render_charts(history, save_to_files=False)
 
 
-def save_chart_files(history: list[dict]) -> list[str]:
+def save_chart_files(history: list[dict], chart_prefix: str = "chart") -> list[str]:
     """Generate cumulative P&L charts saved to local files."""
-    return _render_charts(history, save_to_files=True)
+    return _render_charts(history, save_to_files=True, chart_prefix=chart_prefix)
 
 
 # ── WeChat Work Bot Notification ─────────────────────────────────────────────
@@ -644,7 +646,7 @@ def send_wechat_image(image_path: str, webhook_url: str) -> bool:
 
 def send_weekly_report(stock_perf: dict, gold_perf: dict, portfolio: dict,
                        usd_cny: float, sgd_cny: float, gold_price: float,
-                       webhook_url: str) -> bool:
+                       webhook_url: str, chart_prefix: str = "chart") -> bool:
     """Generate weekly charts and send report + images via WeChat Work bot."""
     history = load_history()
     if not history:
@@ -652,7 +654,7 @@ def send_weekly_report(stock_perf: dict, gold_perf: dict, portfolio: dict,
         return False
 
     # Save chart images to files
-    paths = save_chart_files(history)
+    paths = save_chart_files(history, chart_prefix=chart_prefix)
     for p in paths:
         print(f"Chart saved: {p}")
 
@@ -672,9 +674,36 @@ def send_weekly_report(stock_perf: dict, gold_perf: dict, portfolio: dict,
 
 # ── Main ─────────────────────────────────────────────────────────────────────
 
+def _load_profile_config(profile_name: str) -> dict:
+    """Load profile config from profiles.json."""
+    if os.path.exists(PROFILES_FILE):
+        with open(PROFILES_FILE, "r", encoding="utf-8") as f:
+            profiles = json.load(f)
+        if profile_name in profiles:
+            return profiles[profile_name]
+    return {}
+
+
 def main() -> int:
+    global PORTFOLIO_FILE, HISTORY_FILE
+
     weekly_mode = "--weekly" in sys.argv
     charts_only = "--charts" in sys.argv
+
+    # Parse --profile argument
+    profile_name = "default"
+    for arg in sys.argv:
+        if arg.startswith("--profile="):
+            profile_name = arg.split("=", 1)[1]
+
+    # Load profile config and override file paths
+    profile_cfg = _load_profile_config(profile_name)
+    if profile_cfg:
+        PORTFOLIO_FILE = os.path.join(BASE_DIR, profile_cfg.get("portfolio_file", "portfolio.json"))
+        HISTORY_FILE = os.path.join(BASE_DIR, profile_cfg.get("history_file", "history.json"))
+        print(f"Using profile: {profile_name} ({profile_cfg.get('label', '')})")
+
+    chart_prefix = profile_cfg.get("chart_prefix", "chart")
 
     if not os.path.exists(PORTFOLIO_FILE):
         print(f"Error: portfolio file not found at {PORTFOLIO_FILE}", file=sys.stderr)
@@ -688,7 +717,8 @@ def main() -> int:
 
     # Fetch stock prices
     symbols = [p["symbol"] for p in portfolio["stocks"]["positions"]]
-    print(f"Fetching stock prices for: {', '.join(symbols)}")
+    if symbols:
+        print(f"Fetching stock prices for: {', '.join(symbols)}")
     stock_prices = fetch_stock_prices(symbols)
 
     # Fetch gold price
@@ -710,23 +740,24 @@ def main() -> int:
     # --charts: generate chart PNGs locally and exit (for preview)
     if charts_only:
         history = load_history()
-        paths = save_chart_files(history)
+        paths = save_chart_files(history, chart_prefix=chart_prefix)
         for p in paths:
             print(f"Chart saved: {p}")
         return 0
 
     # Send WeChat Work bot notification
-    webhook_url = os.environ.get("WECHAT_WEBHOOK", "")
+    webhook_url = profile_cfg.get("webhook_url", "") or os.environ.get("WECHAT_WEBHOOK", "")
     if not webhook_url:
         print(
-            "Warning: WECHAT_WEBHOOK not set. Skipping notification.",
+            "Warning: No webhook URL configured. Skipping notification.",
             file=sys.stderr,
         )
         return 0
 
     if weekly_mode:
         success = send_weekly_report(stock_perf, gold_perf, portfolio,
-                                     usd_cny, sgd_cny, gold_price, webhook_url)
+                                     usd_cny, sgd_cny, gold_price, webhook_url,
+                                     chart_prefix=chart_prefix)
     else:
         now_date = datetime.now(BEIJING_TZ).strftime("%Y-%m-%d")
         success = send_wechat_text(f"📊 每日资产报告 {now_date}\n\n{report}",

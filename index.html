@@ -118,6 +118,7 @@ h1 { text-align: center; color: #58a6ff; margin-bottom: 8px; font-size: 22px; }
 <div class="container">
   <h1>Portfolio Manager</h1>
   <p class="subtitle">Manage your stock, gold and cash holdings</p>
+  <div id="profile-switcher" style="text-align:center;margin-bottom:12px;font-size:12px;color:#8b949e;"></div>
 
   <!-- Token input -->
   <div id="token-bar" class="form-group" style="margin-bottom:20px;">
@@ -254,6 +255,39 @@ const REPO_OWNER = "JacekCoder";
 const REPO_NAME = "Deposit_analysis";
 const API_BASE = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}`;
 
+// ── Profile support ──────────────────────────────────────────────────────
+const urlParams = new URLSearchParams(window.location.search);
+const PROFILE_KEY = urlParams.get("profile") || "default";
+let PROFILE = { portfolio_file: "portfolio.json", history_file: "history.json", chart_prefix: "chart", label: "Portfolio Manager", webhook_url: "" };
+let profilesConfig = null;
+
+async function loadProfiles() {
+  try {
+    const resp = await fetch(`${API_BASE}/contents/profiles.json`, {
+      headers: { Authorization: `token ${getToken()}` }
+    });
+    if (resp.ok) {
+      const data = await resp.json();
+      profilesConfig = JSON.parse(b64DecodeUTF8(data.content));
+      if (profilesConfig[PROFILE_KEY]) {
+        PROFILE = { ...PROFILE, ...profilesConfig[PROFILE_KEY] };
+      }
+    }
+  } catch { /* use defaults */ }
+  // Update page title
+  document.querySelector("h1").textContent = PROFILE.label;
+  document.title = PROFILE.label;
+  // Render profile switcher links
+  if (profilesConfig) {
+    const links = Object.entries(profilesConfig).map(([key, cfg]) => {
+      if (key === PROFILE_KEY) return `<strong style="color:#58a6ff;">${cfg.label}</strong>`;
+      const url = key === "default" ? "?" : `?profile=${key}`;
+      return `<a href="${url}" style="color:#8b949e;text-decoration:underline;">${cfg.label}</a>`;
+    });
+    document.getElementById("profile-switcher").innerHTML = links.join(" | ");
+  }
+}
+
 let currentPortfolio = null;
 let fileSha = null;
 let stockVerified = false;
@@ -282,9 +316,13 @@ function saveToken() {
   document.getElementById("gh-token-input").value = "";
   document.getElementById("token-bar").style.display = "none";
   showToast("Token saved to browser");
+  loadProfiles();
 }
 (function() {
-  if (getToken()) document.getElementById("token-bar").style.display = "none";
+  if (getToken()) {
+    document.getElementById("token-bar").style.display = "none";
+    loadProfiles();
+  }
 })();
 
 // ── Tab Switching ─────────────────────────────────────────────────────────
@@ -310,7 +348,7 @@ function showToast(msg, type = "success") {
 
 // ── GitHub API ────────────────────────────────────────────────────────────
 async function fetchPortfolio() {
-  const resp = await fetch(`${API_BASE}/contents/portfolio.json`, {
+  const resp = await fetch(`${API_BASE}/contents/${PROFILE.portfolio_file}`, {
     headers: { Authorization: `token ${getToken()}` }
   });
   if (!resp.ok) throw new Error("Failed to fetch portfolio. Check your token.");
@@ -322,7 +360,7 @@ async function fetchPortfolio() {
 
 async function savePortfolio(message) {
   const content = b64EncodeUTF8(JSON.stringify(currentPortfolio, null, 2) + "\n");
-  let resp = await fetch(`${API_BASE}/contents/portfolio.json`, {
+  let resp = await fetch(`${API_BASE}/contents/${PROFILE.portfolio_file}`, {
     method: "PUT",
     headers: { Authorization: `token ${getToken()}`, "Content-Type": "application/json" },
     body: JSON.stringify({ message, content, sha: fileSha })
@@ -330,7 +368,7 @@ async function savePortfolio(message) {
   // SHA conflict: re-fetch and retry once
   if (resp.status === 409) {
     await fetchPortfolio();
-    resp = await fetch(`${API_BASE}/contents/portfolio.json`, {
+    resp = await fetch(`${API_BASE}/contents/${PROFILE.portfolio_file}`, {
       method: "PUT",
       headers: { Authorization: `token ${getToken()}`, "Content-Type": "application/json" },
       body: JSON.stringify({ message, content, sha: fileSha })
@@ -890,7 +928,7 @@ async function triggerWeeklyReport() {
     const resp = await fetch(`${API_BASE}/actions/workflows/weekly_report.yml/dispatches`, {
       method: "POST",
       headers: { Authorization: `token ${getToken()}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ ref: "main" })
+      body: JSON.stringify({ ref: "main", inputs: { profile: PROFILE_KEY } })
     });
     if (resp.ok || resp.status === 204) {
       showToast("已触发推送！约60秒后企业微信将收到报告和图表");

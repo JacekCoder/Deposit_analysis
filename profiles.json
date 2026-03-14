@@ -1,0 +1,16 @@
+{
+  "default": {
+    "label": "Portfolio Manager",
+    "portfolio_file": "portfolio.json",
+    "history_file": "history.json",
+    "chart_prefix": "chart",
+    "webhook_url": ""
+  },
+  "mapeiying": {
+    "label": "Mapeiying Investment",
+    "portfolio_file": "portfolio_mapeiying.json",
+    "history_file": "history_mapeiying.json",
+    "chart_prefix": "chart_mapeiying",
+    "webhook_url": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=9ee84464-76a8-46f2-9aa1-90706647b104"
+  }
+}
