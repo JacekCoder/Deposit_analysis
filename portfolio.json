@@ -8,9 +8,18 @@
         "name": "英伟达 NVIDIA",
         "shares": 1.9,
         "batches": [
-          {"shares": 1.0, "cost_price": 178.4497},
-          {"shares": 0.7, "cost_price": 178.76},
-          {"shares": 0.2, "cost_price": 179.25}
+          {
+            "shares": 1,
+            "cost_price": 178.4497
+          },
+          {
+            "shares": 0.7,
+            "cost_price": 178.76
+          },
+          {
+            "shares": 0.2,
+            "cost_price": 179.25
+          }
         ]
       },
       {
@@ -18,8 +27,25 @@
         "name": "纳指100 Invesco QQQ",
         "shares": 0.95,
         "batches": [
-          {"shares": 0.25, "cost_price": 604.96},
-          {"shares": 0.7, "cost_price": 598.83}
+          {
+            "shares": 0.25,
+            "cost_price": 604.96
+          },
+          {
+            "shares": 0.7,
+            "cost_price": 598.83
+          }
+        ]
+      },
+      {
+        "symbol": "AAPL",
+        "name": "AAPL",
+        "shares": 1.5,
+        "batches": [
+          {
+            "shares": 1.5,
+            "cost_price": 176.3
+          }
         ]
       }
     ]
@@ -33,7 +59,10 @@
         "name": "浙商银行积存金",
         "grams": 1.021,
         "batches": [
-          {"grams": 1.021, "cost_per_gram": 1194.91}
+          {
+            "grams": 1.021,
+            "cost_per_gram": 1194.91
+          }
         ]
       },
       {
@@ -41,8 +70,14 @@
         "grams": 0.1495,
         "weekly_invest_amount": 80,
         "batches": [
-          {"grams_approx": 0.0736, "cost_per_gram": 1087.84},
-          {"grams_approx": 0.0759, "cost_per_gram": 1053.468}
+          {
+            "grams_approx": 0.0736,
+            "cost_per_gram": 1087.84
+          },
+          {
+            "grams_approx": 0.0759,
+            "cost_per_gram": 1053.468
+          }
         ]
       }
     ]
