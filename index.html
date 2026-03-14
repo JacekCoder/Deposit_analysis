@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Portfolio Manager</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background: #0d1117; color: #c9d1d9; min-height: 100vh;
+}
+.container { max-width: 600px; margin: 0 auto; padding: 20px; }
+h1 { text-align: center; color: #58a6ff; margin-bottom: 8px; font-size: 22px; }
+.subtitle { text-align: center; color: #8b949e; margin-bottom: 24px; font-size: 13px; }
+
+/* Tabs */
+.tabs { display: flex; gap: 8px; margin-bottom: 20px; }
+.tab {
+  flex: 1; padding: 10px; text-align: center; border: 1px solid #30363d;
+  border-radius: 8px; cursor: pointer; background: #161b22; color: #8b949e;
+  font-size: 14px; transition: all 0.2s;
+}
+.tab.active { background: #1f6feb; color: #fff; border-color: #1f6feb; }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+/* Form */
+.form-group { margin-bottom: 16px; }
+.form-group label { display: block; color: #8b949e; font-size: 13px; margin-bottom: 6px; }
+.form-group input, .form-group select {
+  width: 100%; padding: 10px 12px; background: #161b22; border: 1px solid #30363d;
+  border-radius: 8px; color: #c9d1d9; font-size: 15px; outline: none;
+}
+.form-group input:focus { border-color: #1f6feb; }
+.form-group .hint { font-size: 11px; color: #6e7681; margin-top: 4px; }
+
+.row { display: flex; gap: 12px; }
+.row .form-group { flex: 1; }
+
+.btn {
+  width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 15px;
+  font-weight: 600; cursor: pointer; transition: all 0.2s; margin-top: 8px;
+}
+.btn-primary { background: #238636; color: #fff; }
+.btn-primary:hover { background: #2ea043; }
+.btn-primary:disabled { background: #1a3a1a; color: #4a8c4a; cursor: not-allowed; }
+.btn-danger { background: #da3633; color: #fff; }
+.btn-danger:hover { background: #e5534b; }
+
+/* Search result */
+.search-result {
+  padding: 12px; background: #161b22; border: 1px solid #30363d;
+  border-radius: 8px; margin-bottom: 16px; display: none;
+}
+.search-result.show { display: block; }
+.search-result .name { color: #58a6ff; font-weight: 600; }
+.search-result .price { color: #3fb950; }
+.search-result .error { color: #f85149; }
+
+/* Current holdings */
+.holdings { margin-top: 24px; }
+.holdings h3 { color: #58a6ff; margin-bottom: 12px; font-size: 16px; }
+.holding-card {
+  background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+  padding: 12px; margin-bottom: 8px;
+}
+.holding-card .header { display: flex; justify-content: space-between; align-items: center; }
+.holding-card .symbol { color: #58a6ff; font-weight: 700; font-size: 15px; }
+.holding-card .detail { color: #8b949e; font-size: 13px; margin-top: 4px; }
+.holding-card .btn-remove {
+  background: none; border: 1px solid #da3633; color: #da3633; padding: 4px 10px;
+  border-radius: 6px; font-size: 12px; cursor: pointer;
+}
+.holding-card .btn-remove:hover { background: #da3633; color: #fff; }
+
+/* Toast */
+.toast {
+  position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+  padding: 12px 24px; border-radius: 8px; font-size: 14px; font-weight: 600;
+  z-index: 1000; display: none; max-width: 90%;
+}
+.toast.success { background: #238636; color: #fff; }
+.toast.error { background: #da3633; color: #fff; }
+.toast.show { display: block; animation: fadeInOut 3s ease; }
+@keyframes fadeInOut {
+  0% { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+  15% { opacity: 1; transform: translateX(-50%) translateY(0); }
+  85% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* Loading spinner */
+.spinner {
+  display: inline-block; width: 16px; height: 16px;
+  border: 2px solid #fff; border-top-color: transparent;
+  border-radius: 50%; animation: spin 0.6s linear infinite;
+  vertical-align: middle; margin-right: 6px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <h1>Portfolio Manager</h1>
+  <p class="subtitle">Add or update your stock and gold holdings</p>
+
+  <!-- Token input (saved in browser localStorage) -->
+  <div id="token-bar" class="form-group" style="margin-bottom:20px;">
+    <label>GitHub Token <span style="font-size:11px;color:#6e7681;">(saved locally in browser)</span></label>
+    <div style="display:flex;gap:8px;">
+      <input type="password" id="gh-token-input" placeholder="ghp_xxxx..." style="flex:1;">
+      <button class="btn btn-primary" style="width:auto;margin-top:0;padding:8px 16px;" onclick="saveToken()">Save</button>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('stock')">Buy Stock</div>
+    <div class="tab" onclick="switchTab('gold')">Buy Gold</div>
+    <div class="tab" onclick="switchTab('view')">View Holdings</div>
+  </div>
+
+  <!-- Stock Tab -->
+  <div id="tab-stock" class="tab-content active">
+    <div class="form-group">
+      <label>Stock Symbol</label>
+      <input type="text" id="stock-symbol" placeholder="e.g. AAPL, TSLA, NVDA"
+             oninput="this.value=this.value.toUpperCase()" onblur="searchStock()">
+      <div class="hint">Enter a US stock ticker and click outside to verify</div>
+    </div>
+    <div id="stock-search-result" class="search-result"></div>
+
+    <div class="row">
+      <div class="form-group">
+        <label>Shares</label>
+        <input type="number" id="stock-shares" step="0.01" min="0.01" placeholder="e.g. 1.5">
+      </div>
+      <div class="form-group">
+        <label>Cost Price (USD)</label>
+        <input type="number" id="stock-cost" step="0.01" min="0" placeholder="e.g. 178.45">
+      </div>
+    </div>
+
+    <button class="btn btn-primary" id="btn-add-stock" onclick="addStock()">
+      Add Stock Position
+    </button>
+  </div>
+
+  <!-- Gold Tab -->
+  <div id="tab-gold" class="tab-content">
+    <div class="form-group">
+      <label>Gold Product Name</label>
+      <input type="text" id="gold-name" placeholder="e.g. Zheshang Bank Gold">
+    </div>
+    <div class="row">
+      <div class="form-group">
+        <label>Grams</label>
+        <input type="number" id="gold-grams" step="0.0001" min="0.0001" placeholder="e.g. 1.021">
+      </div>
+      <div class="form-group">
+        <label>Cost (CNY/gram)</label>
+        <input type="number" id="gold-cost" step="0.01" min="0" placeholder="e.g. 1194.91">
+      </div>
+    </div>
+
+    <button class="btn btn-primary" id="btn-add-gold" onclick="addGold()">
+      Add Gold Position
+    </button>
+  </div>
+
+  <!-- View Tab -->
+  <div id="tab-view" class="tab-content">
+    <div id="holdings-list">
+      <p style="color:#8b949e; text-align:center;">Loading...</p>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+const REPO_OWNER = "JacekCoder";
+const REPO_NAME = "Deposit_analysis";
+const API_BASE = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}`;
+
+let currentPortfolio = null;
+let fileSha = null;
+let stockVerified = false;
+let verifiedStockName = "";
+
+// ── Token Management (localStorage) ───────────────────────────────────────
+function getToken() {
+  return localStorage.getItem("gh_pat") || "";
+}
+function saveToken() {
+  const val = document.getElementById("gh-token-input").value.trim();
+  if (!val) return showToast("Please enter a token", "error");
+  localStorage.setItem("gh_pat", val);
+  document.getElementById("gh-token-input").value = "";
+  document.getElementById("token-bar").style.display = "none";
+  showToast("Token saved to browser");
+}
+// On load: hide token bar if already saved
+(function initToken() {
+  const saved = getToken();
+  if (saved) {
+    document.getElementById("token-bar").style.display = "none";
+  }
+})();
+
+// ── Tab Switching ──────────────────────────────────────────────────────────
+function switchTab(tab) {
+  document.querySelectorAll(".tab").forEach((t, i) => {
+    t.classList.toggle("active", ["stock","gold","view"][i] === tab);
+  });
+  document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
+  document.getElementById(`tab-${tab}`).classList.add("active");
+  if (tab === "view") loadPortfolio();
+}
+
+// ── Toast ──────────────────────────────────────────────────────────────────
+function showToast(msg, type = "success") {
+  const t = document.getElementById("toast");
+  t.className = `toast ${type} show`;
+  t.textContent = msg;
+  setTimeout(() => t.classList.remove("show"), 3000);
+}
+
+// ── GitHub API ─────────────────────────────────────────────────────────────
+async function fetchPortfolio() {
+  const resp = await fetch(`${API_BASE}/contents/portfolio.json`, {
+    headers: { Authorization: `token ${getToken()}` }
+  });
+  if (!resp.ok) throw new Error("Failed to fetch portfolio");
+  const data = await resp.json();
+  fileSha = data.sha;
+  const content = atob(data.content);
+  currentPortfolio = JSON.parse(content);
+  return currentPortfolio;
+}
+
+async function savePortfolio(message) {
+  const content = btoa(unescape(encodeURIComponent(
+    JSON.stringify(currentPortfolio, null, 2) + "\n"
+  )));
+  const resp = await fetch(`${API_BASE}/contents/portfolio.json`, {
+    method: "PUT",
+    headers: {
+      Authorization: `token ${getToken()}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ message, content, sha: fileSha })
+  });
+  if (!resp.ok) {
+    const err = await resp.json();
+    throw new Error(err.message || "Failed to save");
+  }
+  const data = await resp.json();
+  fileSha = data.content.sha;
+}
+
+// ── Stock Search (via Yahoo Finance proxy-free approach) ───────────────────
+async function searchStock() {
+  const symbol = document.getElementById("stock-symbol").value.trim();
+  const resultDiv = document.getElementById("stock-search-result");
+  stockVerified = false;
+
+  if (!symbol) {
+    resultDiv.classList.remove("show");
+    return;
+  }
+
+  resultDiv.innerHTML = '<span style="color:#8b949e">Searching...</span>';
+  resultDiv.classList.add("show");
+
+  try {
+    // Use Yahoo Finance v8 API (public, no key needed)
+    const resp = await fetch(
+      `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?range=1d&interval=1d`
+    );
+
+    if (!resp.ok) {
+      // Try alternative: just validate the symbol exists via search
+      const searchResp = await fetch(
+        `https://query2.finance.yahoo.com/v1/finance/search?q=${symbol}&quotesCount=1`
+      );
+      if (searchResp.ok) {
+        const searchData = await searchResp.json();
+        if (searchData.quotes && searchData.quotes.length > 0) {
+          const q = searchData.quotes[0];
+          verifiedStockName = q.longname || q.shortname || symbol;
+          stockVerified = true;
+          resultDiv.innerHTML = `<span class="name">${q.symbol} - ${verifiedStockName}</span>`;
+          return;
+        }
+      }
+      resultDiv.innerHTML = `<span class="error">Symbol "${symbol}" not found</span>`;
+      return;
+    }
+
+    const data = await resp.json();
+    const meta = data.chart.result[0].meta;
+    const price = meta.regularMarketPrice;
+    verifiedStockName = meta.longName || meta.shortName || symbol;
+    stockVerified = true;
+
+    resultDiv.innerHTML =
+      `<span class="name">${symbol} - ${verifiedStockName}</span><br>` +
+      `<span class="price">Current: $${price.toFixed(2)}</span>`;
+  } catch (e) {
+    // CORS may block Yahoo Finance from browser - allow manual entry
+    stockVerified = true;
+    verifiedStockName = symbol;
+    resultDiv.innerHTML =
+      `<span style="color:#e3b341">Cannot verify (CORS). Symbol "${symbol}" will be added as-is.</span>`;
+  }
+}
+
+// ── Add Stock ──────────────────────────────────────────────────────────────
+async function addStock() {
+  const symbol = document.getElementById("stock-symbol").value.trim();
+  const shares = parseFloat(document.getElementById("stock-shares").value);
+  const cost = parseFloat(document.getElementById("stock-cost").value);
+  const btn = document.getElementById("btn-add-stock");
+
+  if (!symbol) return showToast("Please enter a stock symbol", "error");
+  if (!shares || shares <= 0) return showToast("Please enter valid shares", "error");
+  if (!cost || cost < 0) return showToast("Please enter valid cost price", "error");
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Submitting...';
+
+  try {
+    await fetchPortfolio();
+
+    // Check if stock already exists
+    const existing = currentPortfolio.stocks.positions.find(
+      p => p.symbol === symbol
+    );
+
+    if (existing) {
+      // Add a new batch and update total shares
+      existing.batches.push({ shares, cost_price: cost });
+      existing.shares = parseFloat(
+        (existing.shares + shares).toFixed(6)
+      );
+    } else {
+      // Add new position
+      currentPortfolio.stocks.positions.push({
+        symbol,
+        name: verifiedStockName || symbol,
+        shares,
+        batches: [{ shares, cost_price: cost }]
+      });
+    }
+
+    await savePortfolio(`Add stock: ${shares} shares of ${symbol} @ $${cost}`);
+    showToast(`Added ${shares} shares of ${symbol} @ $${cost}`);
+
+    // Clear form
+    document.getElementById("stock-symbol").value = "";
+    document.getElementById("stock-shares").value = "";
+    document.getElementById("stock-cost").value = "";
+    document.getElementById("stock-search-result").classList.remove("show");
+    stockVerified = false;
+  } catch (e) {
+    showToast(`Error: ${e.message}`, "error");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Add Stock Position";
+  }
+}
+
+// ── Add Gold ───────────────────────────────────────────────────────────────
+async function addGold() {
+  const name = document.getElementById("gold-name").value.trim();
+  const grams = parseFloat(document.getElementById("gold-grams").value);
+  const cost = parseFloat(document.getElementById("gold-cost").value);
+  const btn = document.getElementById("btn-add-gold");
+
+  if (!name) return showToast("Please enter gold product name", "error");
+  if (!grams || grams <= 0) return showToast("Please enter valid grams", "error");
+  if (!cost || cost < 0) return showToast("Please enter valid cost", "error");
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Submitting...';
+
+  try {
+    await fetchPortfolio();
+
+    // Check if gold product already exists
+    const existing = currentPortfolio.gold.positions.find(
+      p => p.name === name
+    );
+
+    if (existing) {
+      existing.batches.push({ grams, cost_per_gram: cost });
+      existing.grams = parseFloat(
+        (existing.grams + grams).toFixed(6)
+      );
+    } else {
+      currentPortfolio.gold.positions.push({
+        name,
+        grams,
+        batches: [{ grams, cost_per_gram: cost }]
+      });
+    }
+
+    // Update total grams
+    currentPortfolio.gold.total_grams = parseFloat(
+      currentPortfolio.gold.positions
+        .reduce((sum, p) => sum + p.grams, 0)
+        .toFixed(6)
+    );
+
+    await savePortfolio(`Add gold: ${grams}g of ${name} @ ¥${cost}/g`);
+    showToast(`Added ${grams}g of ${name} @ ¥${cost}/g`);
+
+    document.getElementById("gold-name").value = "";
+    document.getElementById("gold-grams").value = "";
+    document.getElementById("gold-cost").value = "";
+  } catch (e) {
+    showToast(`Error: ${e.message}`, "error");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Add Gold Position";
+  }
+}
+
+// ── View Holdings ──────────────────────────────────────────────────────────
+async function loadPortfolio() {
+  const container = document.getElementById("holdings-list");
+  container.innerHTML = '<p style="color:#8b949e; text-align:center;">Loading...</p>';
+
+  try {
+    await fetchPortfolio();
+    let html = "";
+
+    // Stocks
+    html += '<h3 style="color:#e94560; margin-bottom:12px;">Stocks (Moomoo)</h3>';
+    if (currentPortfolio.stocks.positions.length === 0) {
+      html += '<p style="color:#8b949e;">No stock positions</p>';
+    }
+    for (const pos of currentPortfolio.stocks.positions) {
+      const totalCost = pos.batches.reduce((s, b) => s + b.shares * b.cost_price, 0);
+      const totalShares = pos.batches.reduce((s, b) => s + b.shares, 0);
+      const avgCost = totalShares > 0 ? (totalCost / totalShares).toFixed(2) : "0";
+      html += `
+        <div class="holding-card">
+          <div class="header">
+            <span class="symbol">${pos.symbol} <span style="color:#8b949e;font-weight:400;font-size:13px;">${pos.name}</span></span>
+            <button class="btn-remove" onclick="removeStock('${pos.symbol}')">Remove</button>
+          </div>
+          <div class="detail">
+            ${pos.shares} shares | Avg cost: $${avgCost} | ${pos.batches.length} batch(es)
+          </div>
+        </div>`;
+    }
+
+    // Gold
+    html += '<h3 style="color:#f1c40f; margin: 20px 0 12px;">Gold (Alipay)</h3>';
+    if (currentPortfolio.gold.positions.length === 0) {
+      html += '<p style="color:#8b949e;">No gold positions</p>';
+    }
+    for (const pos of currentPortfolio.gold.positions) {
+      const totalCost = pos.batches.reduce((s, b) => {
+        const g = b.grams || b.grams_approx || 0;
+        return s + g * b.cost_per_gram;
+      }, 0);
+      const totalGrams = pos.batches.reduce((s, b) => s + (b.grams || b.grams_approx || 0), 0);
+      const avgCost = totalGrams > 0 ? (totalCost / totalGrams).toFixed(2) : "0";
+      html += `
+        <div class="holding-card">
+          <div class="header">
+            <span class="symbol">${pos.name}</span>
+            <button class="btn-remove" onclick="removeGold('${pos.name}')">Remove</button>
+          </div>
+          <div class="detail">
+            ${pos.grams.toFixed(4)}g | Avg cost: ¥${avgCost}/g | ${pos.batches.length} batch(es)
+          </div>
+        </div>`;
+    }
+
+    // Cash
+    html += '<h3 style="color:#3fb950; margin: 20px 0 12px;">Cash</h3>';
+    html += `
+      <div class="holding-card">
+        <div class="detail">CNY: ¥${currentPortfolio.cash.CNY || 0}</div>
+        <div class="detail">SGD: S$${currentPortfolio.cash.SGD || 0}</div>
+      </div>`;
+
+    container.innerHTML = html;
+  } catch (e) {
+    container.innerHTML = `<p style="color:#f85149;">Error: ${e.message}</p>`;
+  }
+}
+
+// ── Remove Position ────────────────────────────────────────────────────────
+async function removeStock(symbol) {
+  if (!confirm(`Remove all ${symbol} positions?`)) return;
+  try {
+    await fetchPortfolio();
+    currentPortfolio.stocks.positions = currentPortfolio.stocks.positions.filter(
+      p => p.symbol !== symbol
+    );
+    await savePortfolio(`Remove stock: ${symbol}`);
+    showToast(`Removed ${symbol}`);
+    loadPortfolio();
+  } catch (e) {
+    showToast(`Error: ${e.message}`, "error");
+  }
+}
+
+async function removeGold(name) {
+  if (!confirm(`Remove "${name}"?`)) return;
+  try {
+    await fetchPortfolio();
+    currentPortfolio.gold.positions = currentPortfolio.gold.positions.filter(
+      p => p.name !== name
+    );
+    currentPortfolio.gold.total_grams = parseFloat(
+      currentPortfolio.gold.positions.reduce((s, p) => s + p.grams, 0).toFixed(6)
+    );
+    await savePortfolio(`Remove gold: ${name}`);
+    showToast(`Removed ${name}`);
+    loadPortfolio();
+  } catch (e) {
+    showToast(`Error: ${e.message}`, "error");
+  }
+}
+</script>
+
+</body>
+</html>

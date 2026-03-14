@@ -1,30 +1,55 @@
 {
-  "account_name": "My US Stock Portfolio",
-  "currency": "USD",
-  "positions": [
-    {
-      "symbol": "AAPL",
-      "name": "Apple Inc.",
-      "shares": 10,
-      "cost_basis": 150.00
-    },
-    {
-      "symbol": "MSFT",
-      "name": "Microsoft Corporation",
-      "shares": 5,
-      "cost_basis": 300.00
-    },
-    {
-      "symbol": "GOOGL",
-      "name": "Alphabet Inc.",
-      "shares": 2,
-      "cost_basis": 2500.00
-    },
-    {
-      "symbol": "AMZN",
-      "name": "Amazon.com Inc.",
-      "shares": 3,
-      "cost_basis": 3000.00
-    }
-  ]
+  "stocks": {
+    "account_name": "Moomoo 美股账户",
+    "currency": "USD",
+    "positions": [
+      {
+        "symbol": "NVDA",
+        "name": "英伟达 NVIDIA",
+        "shares": 1.9,
+        "batches": [
+          {"shares": 1.0, "cost_price": 178.4497},
+          {"shares": 0.7, "cost_price": 178.76},
+          {"shares": 0.2, "cost_price": 179.25}
+        ]
+      },
+      {
+        "symbol": "QQQ",
+        "name": "纳指100 Invesco QQQ",
+        "shares": 0.95,
+        "batches": [
+          {"shares": 0.25, "cost_price": 604.96},
+          {"shares": 0.7, "cost_price": 598.83}
+        ]
+      }
+    ]
+  },
+  "gold": {
+    "account_name": "支付宝黄金",
+    "currency": "CNY",
+    "total_grams": 1.1705,
+    "positions": [
+      {
+        "name": "浙商银行积存金",
+        "grams": 1.021,
+        "batches": [
+          {"grams": 1.021, "cost_per_gram": 1194.91}
+        ]
+      },
+      {
+        "name": "国泰黄金ETF联接C",
+        "grams": 0.1495,
+        "weekly_invest_amount": 80,
+        "batches": [
+          {"grams_approx": 0.0736, "cost_per_gram": 1087.84},
+          {"grams_approx": 0.0759, "cost_per_gram": 1053.468}
+        ]
+      }
+    ]
+  },
+  "cash": {
+    "SGD": 0,
+    "CNY": 191
+  },
+  "monthly_budget_cny": 5000
 }

@@ -1,17 +1,17 @@
-name: Daily Deposit Analysis
+name: Weekly P&L Report with Charts
 
 on:
   schedule:
-    # 8:00 AM Beijing Time (UTC+8) = 00:00 UTC
-    - cron: "0 0 * * *"
+    # Saturday 8:00 AM Beijing Time (UTC+8) = Saturday 00:00 UTC
+    - cron: "0 0 * * 6"
   workflow_dispatch:  # Allow manual triggering for testing
 
 jobs:
-  analyze:
-    name: Run Portfolio Analysis & Notify WeChat
+  weekly-report:
+    name: Generate Weekly Charts & Send to WeChat
     runs-on: ubuntu-latest
     permissions:
-      contents: write  # Needed to commit history.json
+      contents: write
 
     steps:
       - name: Check out repository
@@ -26,15 +26,15 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run deposit analysis and send WeChat notification
+      - name: Run weekly report with charts
         env:
           PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
-        run: python deposit_analysis.py
+        run: python deposit_analysis.py --weekly
 
       - name: Commit history data
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add history.json
-          git diff --cached --quiet || git commit -m "Update daily P&L history [skip ci]"
+          git diff --cached --quiet || git commit -m "Update weekly P&L history [skip ci]"
           git push

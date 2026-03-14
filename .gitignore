@@ -1,0 +1,4 @@
+chart_*.png
+__pycache__/
+*.pyc
+.vscode/
