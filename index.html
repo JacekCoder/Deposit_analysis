@@ -356,19 +356,22 @@ async function fetchPortfolio() {
 }
 
 async function savePortfolio(message) {
-  const content = b64EncodeUTF8(JSON.stringify(currentPortfolio, null, 2) + "\n");
+  const localPortfolio = JSON.parse(JSON.stringify(currentPortfolio));
+  const content = b64EncodeUTF8(JSON.stringify(localPortfolio, null, 2) + "\n");
   let resp = await fetch(`${API_BASE}/contents/${PROFILE.portfolio_file}`, {
     method: "PUT",
     headers: { Authorization: `token ${getToken()}`, "Content-Type": "application/json" },
     body: JSON.stringify({ message, content, sha: fileSha })
   });
-  // SHA conflict: re-fetch and retry once
-  if (resp.status === 409) {
+  // SHA conflict: re-fetch latest SHA and force save our local version
+  if (resp.status === 409 || resp.status === 422) {
     await fetchPortfolio();
+    currentPortfolio = localPortfolio;
+    const retryContent = b64EncodeUTF8(JSON.stringify(currentPortfolio, null, 2) + "\n");
     resp = await fetch(`${API_BASE}/contents/${PROFILE.portfolio_file}`, {
       method: "PUT",
       headers: { Authorization: `token ${getToken()}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ message, content, sha: fileSha })
+      body: JSON.stringify({ message, content: retryContent, sha: fileSha })
     });
   }
   const result = await resp.json();
