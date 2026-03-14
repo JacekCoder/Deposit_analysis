@@ -139,11 +139,12 @@ h1 { text-align: center; color: #58a6ff; margin-bottom: 8px; font-size: 22px; }
 
   <!-- Buy Stock Tab -->
   <div id="tab-stock" class="tab-content active">
-    <div class="form-group">
+    <div class="form-group" style="position:relative;">
       <label>Stock Symbol</label>
-      <input type="text" id="stock-symbol" placeholder="e.g. AAPL, TSLA, NVDA"
-             oninput="this.value=this.value.toUpperCase()" onblur="searchStock()">
-      <div class="hint">必须填yfinance支持的美股代码（如AAPL、NVDA、QQQ），填错会导致价格为0</div>
+      <input type="text" id="stock-symbol" placeholder="搜索股票代码或名称，如 AAPL、Apple、特斯拉"
+             oninput="this.value=this.value.toUpperCase(); onSymbolInput()" autocomplete="off">
+      <div class="hint">输入代码或关键词搜索，从下拉列表中选择以确保正确</div>
+      <div id="stock-dropdown" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:10;background:#161b22;border:1px solid #30363d;border-radius:8px;max-height:200px;overflow-y:auto;"></div>
     </div>
     <div id="stock-search-result" class="info-box"></div>
     <div class="row">
@@ -238,8 +239,10 @@ h1 { text-align: center; color: #58a6ff; margin-bottom: 8px; font-size: 22px; }
 
   <!-- Charts Tab -->
   <div id="tab-charts" class="tab-content">
-    <button class="btn btn-blue" id="btn-load-charts" onclick="loadCharts()">Load Weekly Charts</button>
-    <div id="charts-area" class="chart-area"></div>
+    <button class="btn btn-blue" id="btn-refresh-snapshot" onclick="refreshSnapshot()">Refresh Latest Snapshot</button>
+    <div id="charts-area" class="chart-area">
+      <p style="color:#8b949e; text-align:center;">Click above to load latest data</p>
+    </div>
   </div>
 </div>
 
@@ -339,28 +342,55 @@ async function fetchFileBase64(path) {
   return data.content;
 }
 
-// ── Stock Search ──────────────────────────────────────────────────────────
-async function searchStock() {
-  const symbol = document.getElementById("stock-symbol").value.trim();
-  const r = document.getElementById("stock-search-result");
-  stockVerified = false;
-  if (!symbol) { r.classList.remove("show"); return; }
-  r.innerHTML = '<span style="color:#8b949e">Searching...</span>';
-  r.classList.add("show");
+// ── Stock Search / Autocomplete ───────────────────────────────────────────
+let searchTimer = null;
+function onSymbolInput() {
+  clearTimeout(searchTimer);
+  const val = document.getElementById("stock-symbol").value.trim();
+  if (val.length < 1) { document.getElementById("stock-dropdown").style.display = "none"; return; }
+  searchTimer = setTimeout(() => searchStockAutocomplete(val), 300);
+}
+
+async function searchStockAutocomplete(query) {
+  const dd = document.getElementById("stock-dropdown");
   try {
-    const resp = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?range=1d&interval=1d`);
-    if (resp.ok) {
-      const data = await resp.json();
-      const meta = data.chart.result[0].meta;
-      verifiedStockName = meta.longName || meta.shortName || symbol;
-      stockVerified = true;
-      r.innerHTML = `<span class="name">${symbol} - ${verifiedStockName}</span><br><span class="price">Current: $${meta.regularMarketPrice.toFixed(2)}</span>`;
-    } else { throw new Error("not found"); }
+    const url = `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://query2.finance.yahoo.com/v1/finance/search?q=${query}&quotesCount=8&newsCount=0&listsCount=0`)}`;
+    const resp = await fetch(url, { signal: AbortSignal.timeout(5000) });
+    if (!resp.ok) { dd.style.display = "none"; return; }
+    const data = await resp.json();
+    const quotes = (data.quotes || []).filter(q => q.quoteType === "EQUITY" || q.quoteType === "ETF");
+    if (!quotes.length) { dd.style.display = "none"; return; }
+
+    dd.innerHTML = quotes.map(q =>
+      `<div style="padding:8px 12px;cursor:pointer;border-bottom:1px solid #21262d;color:#c9d1d9;font-size:13px;"
+            onmousedown="selectStock('${q.symbol}', '${(q.longname || q.shortname || q.symbol).replace(/'/g, "\\'")}')">
+        <span style="color:#58a6ff;font-weight:700;">${q.symbol}</span>
+        <span style="color:#8b949e;margin-left:8px;">${q.longname || q.shortname || ""}</span>
+        <span style="color:#6e7681;margin-left:8px;">${q.exchange || ""}</span>
+      </div>`
+    ).join("");
+    dd.style.display = "block";
   } catch {
-    stockVerified = true; verifiedStockName = symbol;
-    r.innerHTML = `<span style="color:#e3b341">Cannot verify (CORS). "${symbol}" will be added as-is.</span>`;
+    dd.style.display = "none";
   }
 }
+
+function selectStock(symbol, name) {
+  document.getElementById("stock-symbol").value = symbol;
+  document.getElementById("stock-dropdown").style.display = "none";
+  stockVerified = true;
+  verifiedStockName = name;
+  const r = document.getElementById("stock-search-result");
+  r.innerHTML = `<span class="name">${symbol} - ${name}</span>`;
+  r.classList.add("show");
+}
+
+// Close dropdown on click outside
+document.addEventListener("click", (e) => {
+  if (!e.target.closest("#stock-symbol") && !e.target.closest("#stock-dropdown")) {
+    document.getElementById("stock-dropdown").style.display = "none";
+  }
+});
 
 // ── Add Stock ─────────────────────────────────────────────────────────────
 async function addStock() {
@@ -651,97 +681,137 @@ async function removeGold(name) {
   } catch (e) { showToast(`Error: ${e.message}`, "error"); }
 }
 
-// ── Charts ────────────────────────────────────────────────────────────────
-async function loadCharts() {
-  const btn = document.getElementById("btn-load-charts");
+// ── Charts / Snapshot ─────────────────────────────────────────────────────
+async function fetchLivePrice(symbol) {
+  // Try Yahoo Finance via CORS proxy
+  const url = `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://query2.finance.yahoo.com/v8/finance/chart/${symbol}?range=1d&interval=1d`)}`;
+  try {
+    const resp = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    const meta = data.chart.result[0].meta;
+    return { price: meta.regularMarketPrice, currency: meta.currency };
+  } catch { return null; }
+}
+
+async function fetchUsdCny() {
+  try {
+    const resp = await fetch("https://open.er-api.com/v6/latest/USD", { signal: AbortSignal.timeout(8000) });
+    if (!resp.ok) return 6.9;
+    const data = await resp.json();
+    return data.rates.CNY || 6.9;
+  } catch { return 6.9; }
+}
+
+async function refreshSnapshot() {
+  const btn = document.getElementById("btn-refresh-snapshot");
   const area = document.getElementById("charts-area");
-  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>Generating charts...';
-  area.innerHTML = '<p style="color:#8b949e;">Triggering workflow...</p>';
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>Fetching live prices...';
 
-  try {
-    // Trigger the weekly report workflow
-    const dispatchResp = await fetch(`${API_BASE}/actions/workflows/weekly_report.yml/dispatches`, {
-      method: "POST",
-      headers: { Authorization: `token ${getToken()}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ ref: "main" })
-    });
-
-    if (!dispatchResp.ok) {
-      // Fallback: just load history.json and show text summary
-      throw new Error("Cannot trigger workflow, loading history instead...");
+  if (!currentPortfolio) {
+    try { await fetchPortfolio(); } catch (e) {
+      area.innerHTML = `<p style="color:#f85149;">Error: ${e.message}</p>`;
+      btn.disabled = false; btn.textContent = "Refresh Latest Snapshot"; return;
     }
-
-    area.innerHTML = '<p style="color:#e3b341;">Workflow triggered! Charts will be generated.<br>This takes ~60s. Check WeChat for the report, or come back and click again to see if chart images are ready.</p>';
-
-    // Try to load existing chart images from repo
-    setTimeout(async () => {
-      await tryLoadChartImages(area);
-    }, 3000);
-
-  } catch (e) {
-    // Fallback: show latest snapshot
-    await renderLatestSnapshot(area, "");
-  } finally {
-    btn.disabled = false; btn.textContent = "Load Weekly Charts";
   }
-}
 
-async function tryLoadChartImages(area) {
-  try {
-    let html = area.innerHTML;
+  const now = new Date();
+  const bjTime = new Date(now.getTime() + 8 * 3600000);
+  const dateStr = bjTime.toISOString().slice(0, 10);
+  const timeStr = bjTime.toISOString().slice(11, 16);
 
-    // Load chart images via GitHub API (works with private repos)
-    for (const [title, color, file] of [
-      ["Stock P&L Trend", "#e94560", "chart_stocks.png"],
-      ["Gold P&L Trend", "#f1c40f", "chart_gold.png"]
-    ]) {
-      try {
-        const resp = await fetch(`${API_BASE}/contents/${file}`, {
-          headers: { Authorization: `token ${getToken()}`, Accept: "application/vnd.github.v3.json" }
-        });
-        if (resp.ok) {
-          const data = await resp.json();
-          html += `<h3 style="color:${color};margin:16px 0 8px;">${title}</h3>`;
-          html += `<img src="data:image/png;base64,${data.content.replace(/\s/g, "")}" style="max-width:100%;border-radius:8px;" />`;
-        }
-      } catch {}
+  let html = `<h3 style="color:#58a6ff;margin:16px 0 8px;">Live Snapshot (${dateStr} ${timeStr} 北京时间)</h3>`;
+
+  // Fetch USD/CNY and all stock prices in parallel
+  const positions = currentPortfolio.stocks.positions;
+  const symbols = positions.map(p => p.symbol);
+  const [usdCny, ...priceResults] = await Promise.all([
+    fetchUsdCny(),
+    ...symbols.map(s => fetchLivePrice(s))
+  ]);
+
+  html += `<div class="detail" style="color:#8b949e;margin-bottom:8px;">💱 1 USD = ${usdCny.toFixed(4)} CNY</div>`;
+
+  // Stock section
+  html += '<h4 style="color:#e94560;margin:12px 0 6px;">美股持仓</h4>';
+  let stockTotalPnlCny = 0;
+  let stockTotalValueCny = 0;
+
+  for (let i = 0; i < positions.length; i++) {
+    const p = positions[i];
+    const priceData = priceResults[i];
+    const avgCost = p.batches.reduce((s, b) => s + b.price * b.shares, 0) / p.shares;
+
+    if (priceData && priceData.price) {
+      const currentPrice = priceData.price;
+      const pnlUsd = (currentPrice - avgCost) * p.shares;
+      const pnlCny = pnlUsd * usdCny;
+      const pnlPct = ((currentPrice - avgCost) / avgCost * 100);
+      const valueCny = currentPrice * p.shares * usdCny;
+      stockTotalPnlCny += pnlCny;
+      stockTotalValueCny += valueCny;
+      const color = pnlCny >= 0 ? "#3fb950" : "#f85149";
+      const sign = pnlCny >= 0 ? "+" : "";
+      html += `<div class="holding-card"><div class="detail"><span class="symbol">${p.symbol}</span> ${p.name}<br>`;
+      html += `现价: $${currentPrice.toFixed(2)} | 均价: $${avgCost.toFixed(2)} | ${p.shares}股<br>`;
+      html += `<span style="color:${color};">盈亏: ¥${sign}${pnlCny.toFixed(2)} (${sign}${pnlPct.toFixed(2)}%)</span></div></div>`;
+    } else {
+      html += `<div class="holding-card"><div class="detail"><span class="symbol">${p.symbol}</span> ${p.name}<br>`;
+      html += `<span style="color:#e3b341;">价格获取失败</span></div></div>`;
     }
+  }
 
-    // Show latest snapshot from history
-    await renderLatestSnapshot(area, html);
-  } catch {}
-}
+  const stColor = stockTotalPnlCny >= 0 ? "#3fb950" : "#f85149";
+  html += `<div class="detail" style="color:${stColor};margin:8px 0;">股票合计盈亏: ¥${stockTotalPnlCny.toFixed(2)}</div>`;
 
-async function renderLatestSnapshot(area, prefixHtml) {
-  let html = prefixHtml || "";
+  // Gold section
+  html += '<h4 style="color:#f1c40f;margin:12px 0 6px;">黄金持仓</h4>';
+  let goldTotalPnlCny = 0;
+
+  // Fetch gold price (use history fallback)
+  let goldPriceCny = 0;
   try {
-    const histB64 = await fetchFileBase64("history.json");
-    if (!histB64) { if (html) area.innerHTML = html; return; }
-    const history = JSON.parse(b64DecodeUTF8(histB64));
-    if (!history.length) { if (html) area.innerHTML = html; return; }
-
-    const latest = history[history.length - 1];
-
-    // Filter: only show stocks that are still in current portfolio
-    const heldSymbols = currentPortfolio
-      ? new Set(currentPortfolio.stocks.positions.map(p => p.symbol))
-      : null;
-
-    html += `<h3 style="color:#58a6ff;margin:16px 0 8px;">Latest Snapshot (${latest.date})</h3>`;
-    html += '<div class="holding-card">';
-    if (latest.stocks) {
-      for (const [sym, data] of Object.entries(latest.stocks)) {
-        if (heldSymbols && !heldSymbols.has(sym)) continue;
-        const d = data;
-        const color = d.pnl_cny >= 0 ? "#3fb950" : "#f85149";
-        html += `<div class="detail" style="color:${color};">${sym}: ¥${d.pnl_cny?.toFixed(2)} (${d.pnl_pct?.toFixed(2)}%)</div>`;
-      }
+    const goldData = await fetchLivePrice("GC=F");
+    if (goldData && goldData.price) {
+      // COMEX gold: USD per troy oz → CNY per gram
+      goldPriceCny = goldData.price * usdCny / 31.1035;
     }
-    html += `<div class="detail">Stock total: ¥${latest.stock_total_pnl_cny?.toFixed(2)}</div>`;
-    html += `<div class="detail">Gold total: ¥${latest.gold_total_pnl_cny?.toFixed(2)}</div>`;
-    html += '</div>';
   } catch {}
+
+  if (goldPriceCny > 0 && currentPortfolio.gold.positions.length > 0) {
+    for (const g of currentPortfolio.gold.positions) {
+      const avgCost = g.batches.reduce((s, b) => s + b.price_per_gram * b.grams, 0) / g.grams;
+      const pnlCny = (goldPriceCny - avgCost) * g.grams;
+      goldTotalPnlCny += pnlCny;
+      const pnlPct = (goldPriceCny - avgCost) / avgCost * 100;
+      const color = pnlCny >= 0 ? "#3fb950" : "#f85149";
+      const sign = pnlCny >= 0 ? "+" : "";
+      html += `<div class="holding-card"><div class="detail"><span class="symbol">${g.name}</span><br>`;
+      html += `现价: ¥${goldPriceCny.toFixed(2)}/克 | 均价: ¥${avgCost.toFixed(2)}/克 | ${g.grams.toFixed(4)}克<br>`;
+      html += `<span style="color:${color};">盈亏: ¥${sign}${pnlCny.toFixed(2)} (${sign}${pnlPct.toFixed(2)}%)</span></div></div>`;
+    }
+  } else if (currentPortfolio.gold.positions.length > 0) {
+    html += `<div class="holding-card"><div class="detail"><span style="color:#e3b341;">金价获取失败</span></div></div>`;
+  }
+
+  const glColor = goldTotalPnlCny >= 0 ? "#3fb950" : "#f85149";
+  html += `<div class="detail" style="color:${glColor};margin:8px 0;">黄金合计盈亏: ¥${goldTotalPnlCny.toFixed(2)}</div>`;
+
+  // Cash
+  const cashCny = (currentPortfolio.cash.CNY || 0) + (currentPortfolio.cash.SGD || 0) * usdCny * 0.78;
+  html += '<h4 style="color:#3fb950;margin:12px 0 6px;">现金</h4>';
+  html += `<div class="detail">CNY: ¥${currentPortfolio.cash.CNY || 0} | SGD: S$${currentPortfolio.cash.SGD || 0}</div>`;
+
+  // Total
+  const totalCny = stockTotalValueCny + (goldPriceCny > 0 ? currentPortfolio.gold.positions.reduce((s, g) => s + goldPriceCny * g.grams, 0) : 0) + cashCny;
+  const totalPnl = stockTotalPnlCny + goldTotalPnlCny;
+  const tColor = totalPnl >= 0 ? "#3fb950" : "#f85149";
+  html += `<hr style="border-color:#30363d;margin:12px 0;">`;
+  html += `<div class="detail" style="font-size:15px;">💰 总资产: ¥${totalCny.toFixed(2)}</div>`;
+  html += `<div class="detail" style="color:${tColor};font-size:15px;">总盈亏: ¥${totalPnl.toFixed(2)}</div>`;
+
   area.innerHTML = html;
+  btn.disabled = false; btn.textContent = "Refresh Latest Snapshot";
 }
 </script>
 
