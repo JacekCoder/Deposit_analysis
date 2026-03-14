@@ -626,39 +626,28 @@ def send_pushplus(title: str, content: str, token: str,
 def send_weekly_report(stock_perf: dict, gold_perf: dict, portfolio: dict,
                        usd_cny: float, sgd_cny: float, gold_price: float,
                        token: str) -> bool:
-    """Generate weekly charts and send via PushPlus as HTML."""
+    """Generate weekly charts, save as files, and send text report via PushPlus."""
     history = load_history()
     if not history:
         print("No history data, skipping weekly report.", file=sys.stderr)
         return False
 
-    images = generate_weekly_charts(history)
-    if not images:
-        print("No chart images generated.", file=sys.stderr)
-        return False
+    # Save chart images to files (will be committed by workflow)
+    paths = save_chart_files(history)
+    for p in paths:
+        print(f"Chart saved: {p}")
 
-    # Build HTML content with embedded charts + text summary
+    # Send text-only report (PushPlus has size limits, base64 images are too large)
     text_report = format_report(stock_perf, gold_perf, portfolio,
                                 usd_cny, sgd_cny, gold_price)
-    html_report = text_report.replace("\n", "<br>")
 
-    html = f"""
-<div style="font-family: monospace; background: #0d1117; color: #c9d1d9; padding: 20px; border-radius: 10px;">
-<h2 style="color: #58a6ff;">📈 Weekly P&amp;L Charts</h2>
-<h3 style="color: #e94560;">Stock P&amp;L Trend</h3>
-<img src="data:image/png;base64,{images[0]}" style="max-width:100%; border-radius: 8px;" />
-<br><br>
-<h3 style="color: #f1c40f;">Gold P&amp;L Trend</h3>
-<img src="data:image/png;base64,{images[1]}" style="max-width:100%; border-radius: 8px;" />
-<br><br>
-<hr style="border-color: #30363d;">
-<h3 style="color: #58a6ff;">Current Snapshot</h3>
-<pre style="color: #c9d1d9; white-space: pre-wrap;">{html_report}</pre>
-</div>
-"""
+    # Add chart viewing hint
+    repo = os.environ.get("GITHUB_REPOSITORY", "JacekCoder/Deposit_analysis")
+    pages_url = f"https://{repo.split('/')[0].lower()}.github.io/{repo.split('/')[1]}/"
+    content = f"📈 本周P&L图表已生成，请访问:\n{pages_url}\n\n{text_report}"
+
     now_date = datetime.now(BEIJING_TZ).strftime("%Y-%m-%d")
-    return send_pushplus(f"📈 Weekly Report {now_date}", html, token,
-                         template="html")
+    return send_pushplus(f"📈 Weekly Report {now_date}", content, token)
 
 
 # ── Main ─────────────────────────────────────────────────────────────────────

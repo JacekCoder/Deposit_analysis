@@ -710,27 +710,39 @@ async function loadCharts() {
 }
 
 async function tryLoadChartImages(area) {
-  // Not available as committed files, but show history summary
   try {
-    const histB64 = await fetchFileBase64("history.json");
-    if (!histB64) return;
-    const history = JSON.parse(b64DecodeUTF8(histB64));
-    if (!history.length) return;
+    // Try loading chart images from repo
+    const repo = API_BASE.replace("https://api.github.com/repos/", "");
+    const ts = Date.now();
+    const stockImg = `https://raw.githubusercontent.com/${repo}/main/chart_stocks.png?t=${ts}`;
+    const goldImg = `https://raw.githubusercontent.com/${repo}/main/chart_gold.png?t=${ts}`;
 
-    const latest = history[history.length - 1];
     let html = area.innerHTML;
-    html += `<h3 style="color:#58a6ff;margin:16px 0 8px;">Latest Snapshot (${latest.date})</h3>`;
-    html += '<div class="holding-card">';
-    if (latest.stocks) {
-      for (const [sym, data] of Object.entries(latest.stocks)) {
-        const d = data;
-        const color = d.pnl_cny >= 0 ? "#3fb950" : "#f85149";
-        html += `<div class="detail" style="color:${color};">${sym}: ¥${d.pnl_cny?.toFixed(2)} (${d.pnl_pct?.toFixed(2)}%)</div>`;
+    html += `<h3 style="color:#e94560;margin:16px 0 8px;">Stock P&L Trend</h3>`;
+    html += `<img src="${stockImg}" style="max-width:100%;border-radius:8px;" onerror="this.style.display='none'" />`;
+    html += `<h3 style="color:#f1c40f;margin:16px 0 8px;">Gold P&L Trend</h3>`;
+    html += `<img src="${goldImg}" style="max-width:100%;border-radius:8px;" onerror="this.style.display='none'" />`;
+
+    // Also show latest snapshot
+    const histB64 = await fetchFileBase64("history.json");
+    if (histB64) {
+      const history = JSON.parse(b64DecodeUTF8(histB64));
+      if (history.length) {
+        const latest = history[history.length - 1];
+        html += `<h3 style="color:#58a6ff;margin:16px 0 8px;">Latest Snapshot (${latest.date})</h3>`;
+        html += '<div class="holding-card">';
+        if (latest.stocks) {
+          for (const [sym, data] of Object.entries(latest.stocks)) {
+            const d = data;
+            const color = d.pnl_cny >= 0 ? "#3fb950" : "#f85149";
+            html += `<div class="detail" style="color:${color};">${sym}: ¥${d.pnl_cny?.toFixed(2)} (${d.pnl_pct?.toFixed(2)}%)</div>`;
+          }
+        }
+        html += `<div class="detail">Stock total: ¥${latest.stock_total_pnl_cny?.toFixed(2)}</div>`;
+        html += `<div class="detail">Gold total: ¥${latest.gold_total_pnl_cny?.toFixed(2)}</div>`;
+        html += '</div>';
       }
     }
-    html += `<div class="detail">Stock total: ¥${latest.stock_total_pnl_cny?.toFixed(2)}</div>`;
-    html += `<div class="detail">Gold total: ¥${latest.gold_total_pnl_cny?.toFixed(2)}</div>`;
-    html += '</div>';
     area.innerHTML = html;
   } catch {}
 }
