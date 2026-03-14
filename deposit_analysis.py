@@ -722,7 +722,9 @@ def main() -> int:
         now_date = datetime.now(BEIJING_TZ).strftime("%Y-%m-%d")
         success = send_pushplus(f"📊 每日资产报告 {now_date}", report, token)
 
-    return 0 if success else 1
+    if not success:
+        print("Warning: notification failed, but data was saved.", file=sys.stderr)
+    return 0
 
 
 if __name__ == "__main__":
