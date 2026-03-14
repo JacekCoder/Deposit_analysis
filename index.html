@@ -678,32 +678,8 @@ async function loadCharts() {
     }, 3000);
 
   } catch (e) {
-    // Fallback: load history and display text summary
-    try {
-      const histB64 = await fetchFileBase64("history.json");
-      if (histB64) {
-        const history = JSON.parse(b64DecodeUTF8(histB64));
-        const latest = history[history.length - 1];
-        const first = history[0];
-        let html = `<h3 style="color:#58a6ff;margin:16px 0 8px;">P&L History (${history.length} days)</h3>`;
-        html += `<div class="holding-card"><div class="detail">Period: ${first.date} ~ ${latest.date}</div>`;
-        html += `<div class="detail">Latest stock P&L: ¥${latest.stock_total_pnl_cny?.toFixed(2) || "N/A"}</div>`;
-        html += `<div class="detail">Latest gold P&L: ¥${latest.gold_total_pnl_cny?.toFixed(2) || "N/A"}</div>`;
-        if (latest.stocks) {
-          for (const [sym, data] of Object.entries(latest.stocks)) {
-            const d = data;
-            const color = d.pnl_cny >= 0 ? "#3fb950" : "#f85149";
-            html += `<div class="detail" style="color:${color};">${sym}: ¥${d.pnl_cny?.toFixed(2)} (${d.pnl_pct?.toFixed(2)}%)</div>`;
-          }
-        }
-        html += `</div>`;
-        area.innerHTML = html;
-      } else {
-        area.innerHTML = '<p style="color:#8b949e;">No history data yet. Run the daily analysis first.</p>';
-      }
-    } catch (e2) {
-      area.innerHTML = `<p style="color:#f85149;">Error: ${e2.message}</p>`;
-    }
+    // Fallback: show latest snapshot
+    await renderLatestSnapshot(area, "");
   } finally {
     btn.disabled = false; btn.textContent = "Load Weekly Charts";
   }
@@ -711,40 +687,60 @@ async function loadCharts() {
 
 async function tryLoadChartImages(area) {
   try {
-    // Try loading chart images from repo
-    const repo = API_BASE.replace("https://api.github.com/repos/", "");
-    const ts = Date.now();
-    const stockImg = `https://raw.githubusercontent.com/${repo}/main/chart_stocks.png?t=${ts}`;
-    const goldImg = `https://raw.githubusercontent.com/${repo}/main/chart_gold.png?t=${ts}`;
-
     let html = area.innerHTML;
-    html += `<h3 style="color:#e94560;margin:16px 0 8px;">Stock P&L Trend</h3>`;
-    html += `<img src="${stockImg}" style="max-width:100%;border-radius:8px;" onerror="this.style.display='none'" />`;
-    html += `<h3 style="color:#f1c40f;margin:16px 0 8px;">Gold P&L Trend</h3>`;
-    html += `<img src="${goldImg}" style="max-width:100%;border-radius:8px;" onerror="this.style.display='none'" />`;
 
-    // Also show latest snapshot
-    const histB64 = await fetchFileBase64("history.json");
-    if (histB64) {
-      const history = JSON.parse(b64DecodeUTF8(histB64));
-      if (history.length) {
-        const latest = history[history.length - 1];
-        html += `<h3 style="color:#58a6ff;margin:16px 0 8px;">Latest Snapshot (${latest.date})</h3>`;
-        html += '<div class="holding-card">';
-        if (latest.stocks) {
-          for (const [sym, data] of Object.entries(latest.stocks)) {
-            const d = data;
-            const color = d.pnl_cny >= 0 ? "#3fb950" : "#f85149";
-            html += `<div class="detail" style="color:${color};">${sym}: ¥${d.pnl_cny?.toFixed(2)} (${d.pnl_pct?.toFixed(2)}%)</div>`;
-          }
+    // Load chart images via GitHub API (works with private repos)
+    for (const [title, color, file] of [
+      ["Stock P&L Trend", "#e94560", "chart_stocks.png"],
+      ["Gold P&L Trend", "#f1c40f", "chart_gold.png"]
+    ]) {
+      try {
+        const resp = await fetch(`${API_BASE}/contents/${file}`, {
+          headers: { Authorization: `token ${getToken()}`, Accept: "application/vnd.github.v3.json" }
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          html += `<h3 style="color:${color};margin:16px 0 8px;">${title}</h3>`;
+          html += `<img src="data:image/png;base64,${data.content.replace(/\s/g, "")}" style="max-width:100%;border-radius:8px;" />`;
         }
-        html += `<div class="detail">Stock total: ¥${latest.stock_total_pnl_cny?.toFixed(2)}</div>`;
-        html += `<div class="detail">Gold total: ¥${latest.gold_total_pnl_cny?.toFixed(2)}</div>`;
-        html += '</div>';
+      } catch {}
+    }
+
+    // Show latest snapshot from history
+    await renderLatestSnapshot(area, html);
+  } catch {}
+}
+
+async function renderLatestSnapshot(area, prefixHtml) {
+  let html = prefixHtml || "";
+  try {
+    const histB64 = await fetchFileBase64("history.json");
+    if (!histB64) { if (html) area.innerHTML = html; return; }
+    const history = JSON.parse(b64DecodeUTF8(histB64));
+    if (!history.length) { if (html) area.innerHTML = html; return; }
+
+    const latest = history[history.length - 1];
+
+    // Filter: only show stocks that are still in current portfolio
+    const heldSymbols = currentPortfolio
+      ? new Set(currentPortfolio.stocks.positions.map(p => p.symbol))
+      : null;
+
+    html += `<h3 style="color:#58a6ff;margin:16px 0 8px;">Latest Snapshot (${latest.date})</h3>`;
+    html += '<div class="holding-card">';
+    if (latest.stocks) {
+      for (const [sym, data] of Object.entries(latest.stocks)) {
+        if (heldSymbols && !heldSymbols.has(sym)) continue;
+        const d = data;
+        const color = d.pnl_cny >= 0 ? "#3fb950" : "#f85149";
+        html += `<div class="detail" style="color:${color};">${sym}: ¥${d.pnl_cny?.toFixed(2)} (${d.pnl_pct?.toFixed(2)}%)</div>`;
       }
     }
-    area.innerHTML = html;
+    html += `<div class="detail">Stock total: ¥${latest.stock_total_pnl_cny?.toFixed(2)}</div>`;
+    html += `<div class="detail">Gold total: ¥${latest.gold_total_pnl_cny?.toFixed(2)}</div>`;
+    html += '</div>';
   } catch {}
+  area.innerHTML = html;
 }
 </script>
 
