@@ -1,0 +1,38 @@
+name: Daily Deposit Analysis
+
+on:
+  schedule:
+    # 8:00 AM Beijing Time (UTC+8) = 00:00 UTC.
+    # Beijing does not observe daylight saving time, so this offset is
+    # constant year-round.
+    # US markets close at ~21:00 UTC (EDT, Mar-Nov) or ~22:00 UTC (EST,
+    # Nov-Mar), so running at 00:00 UTC always provides at least a 2-hour
+    # buffer after market close before the report is generated.
+    - cron: "0 0 * * *"
+  workflow_dispatch:  # Allow manual triggering for testing
+
+jobs:
+  analyze:
+    name: Run Portfolio Analysis & Notify WeChat
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run deposit analysis and send WeChat notification
+        env:
+          WXPUSHER_APP_TOKEN: ${{ secrets.WXPUSHER_APP_TOKEN }}
+          WXPUSHER_UID: ${{ secrets.WXPUSHER_UID }}
+        run: python deposit_analysis.py

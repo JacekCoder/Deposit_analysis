@@ -1,0 +1,30 @@
+{
+  "account_name": "My US Stock Portfolio",
+  "currency": "USD",
+  "positions": [
+    {
+      "symbol": "AAPL",
+      "name": "Apple Inc.",
+      "shares": 10,
+      "cost_basis": 150.00
+    },
+    {
+      "symbol": "MSFT",
+      "name": "Microsoft Corporation",
+      "shares": 5,
+      "cost_basis": 300.00
+    },
+    {
+      "symbol": "GOOGL",
+      "name": "Alphabet Inc.",
+      "shares": 2,
+      "cost_basis": 2500.00
+    },
+    {
+      "symbol": "AMZN",
+      "name": "Amazon.com Inc.",
+      "shares": 3,
+      "cost_basis": 3000.00
+    }
+  ]
+}
