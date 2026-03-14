@@ -47,17 +47,6 @@
             "cost_price": 111
           }
         ]
-      },
-      {
-        "symbol": "TSLASS",
-        "name": "TSLASS",
-        "shares": 123,
-        "batches": [
-          {
-            "shares": 123,
-            "cost_price": 22
-          }
-        ]
       }
     ]
   },
