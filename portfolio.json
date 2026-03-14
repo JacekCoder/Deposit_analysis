@@ -36,17 +36,6 @@
             "cost_price": 598.83
           }
         ]
-      },
-      {
-        "symbol": "TSLA",
-        "name": "Tesla 特斯拉",
-        "shares": 12,
-        "batches": [
-          {
-            "shares": 12,
-            "cost_price": 31
-          }
-        ]
       }
     ]
   },
