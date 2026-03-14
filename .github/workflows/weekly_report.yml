@@ -5,6 +5,8 @@ on:
     # Saturday 8:00 AM Beijing Time (UTC+8) = Saturday 00:00 UTC
     - cron: "0 0 * * 6"
   workflow_dispatch:  # Allow manual triggering for testing
+  push:
+    branches: [Mapeiying_investment]
 
 jobs:
   weekly-report:
@@ -16,6 +18,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          ref: Mapeiying_investment
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -27,8 +31,6 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Run weekly report with charts
-        env:
-          WECHAT_WEBHOOK: ${{ secrets.WECHAT_WEBHOOK }}
         run: python deposit_analysis.py --weekly
 
       - name: Commit history data

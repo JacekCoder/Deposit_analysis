@@ -716,7 +716,8 @@ def main() -> int:
         return 0
 
     # Send WeChat Work bot notification
-    webhook_url = os.environ.get("WECHAT_WEBHOOK", "")
+    webhook_url = os.environ.get("WECHAT_WEBHOOK",
+                                    "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=9ee84464-76a8-46f2-9aa1-90706647b104")
     if not webhook_url:
         print(
             "Warning: WECHAT_WEBHOOK not set. Skipping notification.",

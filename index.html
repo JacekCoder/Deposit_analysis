@@ -743,14 +743,15 @@ async function removeGold(name) {
 
 // ── Charts / Snapshot ─────────────────────────────────────────────────────
 async function fetchLivePrice(symbol) {
-  // Race multiple CORS proxies — first success wins
+  // Strategy 1: Yahoo Finance v8 chart API via CORS proxies
   const yahooUrl = `https://query2.finance.yahoo.com/v8/finance/chart/${symbol}?range=1d&interval=1d`;
   const proxies = [
     `https://corsproxy.io/?url=${encodeURIComponent(yahooUrl)}`,
     `https://api.allorigins.win/raw?url=${encodeURIComponent(yahooUrl)}`,
+    `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(yahooUrl)}`,
   ];
 
-  async function tryFetch(url) {
+  async function tryYahoo(url) {
     const resp = await fetch(url, { signal: AbortSignal.timeout(10000) });
     if (!resp.ok) throw new Error("not ok");
     const data = await resp.json();
@@ -758,9 +759,35 @@ async function fetchLivePrice(symbol) {
   }
 
   try {
-    // Race all proxies — first to succeed wins
-    return await Promise.any(proxies.map(u => tryFetch(u)));
-  } catch { return null; }
+    return await Promise.any(proxies.map(u => tryYahoo(u)));
+  } catch { /* fall through */ }
+
+  // Strategy 2: Yahoo Finance v6 quote API via CORS proxies
+  const quoteUrl = `https://query1.finance.yahoo.com/v6/finance/quote?symbols=${symbol}`;
+  try {
+    const result = await Promise.any(proxies.map(async (proxyBase) => {
+      const pUrl = proxyBase.includes('corsproxy.io') ? `https://corsproxy.io/?url=${encodeURIComponent(quoteUrl)}`
+        : proxyBase.includes('allorigins') ? `https://api.allorigins.win/raw?url=${encodeURIComponent(quoteUrl)}`
+        : `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(quoteUrl)}`;
+      const resp = await fetch(pUrl, { signal: AbortSignal.timeout(10000) });
+      if (!resp.ok) throw new Error("not ok");
+      const data = await resp.json();
+      const q = data.quoteResponse.result[0];
+      return { price: q.regularMarketPrice, currency: q.currency };
+    }));
+    return result;
+  } catch { /* fall through */ }
+
+  // Strategy 3: Finnhub free API (no key needed for basic quotes)
+  try {
+    const resp = await fetch(`https://finnhub.io/api/v1/quote?symbol=${symbol}&token=demo`, { signal: AbortSignal.timeout(8000) });
+    if (resp.ok) {
+      const data = await resp.json();
+      if (data.c && data.c > 0) return { price: data.c, currency: "USD" };
+    }
+  } catch { /* fall through */ }
+
+  return null;
 }
 
 async function fetchUsdCny() {
