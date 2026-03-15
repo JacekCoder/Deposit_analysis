@@ -13,7 +13,7 @@ on:
 
 jobs:
   analyze:
-    name: Run Portfolio Analysis (${{ matrix.profile }})
+    name: Record Daily Data (${{ matrix.profile }})
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -34,10 +34,8 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run deposit analysis and send WeChat notification
-        env:
-          WECHAT_WEBHOOK: ${{ secrets.WECHAT_WEBHOOK }}
-        run: python deposit_analysis.py --profile=${{ matrix.profile }}
+      - name: Record daily snapshot (no notification)
+        run: python deposit_analysis.py --profile=${{ matrix.profile }} --no-notify
 
       - name: Commit history data
         run: |

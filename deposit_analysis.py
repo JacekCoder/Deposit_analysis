@@ -693,6 +693,7 @@ def main() -> int:
 
     weekly_mode = "--weekly" in sys.argv
     charts_only = "--charts" in sys.argv
+    no_notify = "--no-notify" in sys.argv
 
     # Parse --profile argument
     profile_name = "default"
@@ -753,6 +754,11 @@ def main() -> int:
         paths = save_chart_files(history, chart_prefix=chart_prefix)
         for p in paths:
             print(f"Chart saved: {p}")
+        return 0
+
+    # --no-notify: only record data, skip sending notification
+    if no_notify:
+        print("Data recorded. Skipping notification (--no-notify).")
         return 0
 
     # Send WeChat Work bot notification
