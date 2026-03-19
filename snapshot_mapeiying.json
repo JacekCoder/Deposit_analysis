@@ -1,0 +1,57 @@
+{
+  "date": "2026-03-19",
+  "time": "21:26",
+  "usd_cny": 6.906835,
+  "sgd_cny": 5.388491,
+  "gold_price_cny": 1011.6144452765765,
+  "stocks": [
+    {
+      "symbol": "NVDA",
+      "name": "英伟达 NVIDIA",
+      "shares": 1.9,
+      "avg_cost": 178.64826315789475,
+      "current_price": 180.39999389648438,
+      "pnl_usd": 3.3282884033203004,
+      "pnl_cny": 22.987938834146767,
+      "pnl_pct": 0.9805473099066175
+    },
+    {
+      "symbol": "QQQ",
+      "name": "纳指100 Invesco QQQ",
+      "shares": 0.95,
+      "avg_cost": 600.4431578947369,
+      "current_price": 594.9000244140625,
+      "pnl_usd": -5.265976806640651,
+      "pnl_cny": -36.37123291729388,
+      "pnl_pct": -0.923173727236664
+    }
+  ],
+  "gold": [
+    {
+      "name": "浙商银行积存金",
+      "grams": 1.021,
+      "avg_cost": 1194.91,
+      "current_price": 1011.6144452765765,
+      "pnl_cny": -187.14476137261545,
+      "pnl_pct": -15.339695435089135
+    },
+    {
+      "name": "国泰黄金ETF联接C",
+      "grams": 0.1495,
+      "avg_cost": 1070.3896,
+      "current_price": 1011.6144452765765,
+      "pnl_cny": -8.786885631151819,
+      "pnl_pct": -5.491005772423755
+    }
+  ],
+  "cash": {
+    "SGD": 0,
+    "CNY": 80
+  },
+  "stock_total_pnl_cny": -13.383294083146724,
+  "stock_total_value_cny": 6270.819179121354,
+  "gold_total_pnl_cny": -195.93164700376724,
+  "gold_total_value_cny": 1184.0947081962327,
+  "total_cny": 7534.913887317587,
+  "total_pnl_cny": -209.31494108691396
+}
