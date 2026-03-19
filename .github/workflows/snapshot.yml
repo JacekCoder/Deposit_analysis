@@ -1,0 +1,45 @@
+name: Live Price Snapshot
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: "Profile to run"
+        required: false
+        default: "default"
+
+jobs:
+  snapshot:
+    name: Fetch live prices
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Generate snapshot
+        run: python deposit_analysis.py --snapshot --profile=${{ github.event.inputs.profile }}
+
+      - name: Commit snapshot
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          PROFILE="${{ github.event.inputs.profile }}"
+          if [ "$PROFILE" = "default" ]; then
+            git add snapshot.json
+          else
+            git add "snapshot_${PROFILE}.json"
+          fi
+          git diff --cached --quiet || git commit -m "Update live snapshot (${{ github.event.inputs.profile }}) [skip ci]"
+          git pull --rebase
+          git push

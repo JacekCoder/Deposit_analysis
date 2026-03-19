@@ -694,6 +694,7 @@ def main() -> int:
     weekly_mode = "--weekly" in sys.argv
     charts_only = "--charts" in sys.argv
     no_notify = "--no-notify" in sys.argv
+    snapshot_mode = "--snapshot" in sys.argv
 
     # Parse --profile argument
     profile_name = "default"
@@ -747,6 +748,57 @@ def main() -> int:
     report = format_report(stock_perf, gold_perf, portfolio,
                            usd_cny, sgd_cny, gold_price)
     print("\n" + report + "\n")
+
+    # --snapshot: generate a JSON snapshot of current prices for the web page
+    if snapshot_mode:
+        snapshot_file = "snapshot.json" if profile_name == "default" else f"snapshot_{profile_name}.json"
+        snapshot_path = os.path.join(BASE_DIR, snapshot_file)
+        now_beijing = datetime.now(BEIJING_TZ)
+        snapshot_data = {
+            "date": now_beijing.strftime("%Y-%m-%d"),
+            "time": now_beijing.strftime("%H:%M"),
+            "usd_cny": usd_cny,
+            "sgd_cny": sgd_cny,
+            "gold_price_cny": gold_price,
+            "stocks": [],
+            "gold": [],
+            "cash": portfolio.get("cash", {}),
+            "stock_total_pnl_cny": stock_perf["total_pnl_usd"] * usd_cny,
+            "stock_total_value_cny": stock_perf["total_value_usd"] * usd_cny,
+            "gold_total_pnl_cny": gold_perf["total_pnl_cny"],
+            "gold_total_value_cny": gold_perf["total_value_cny"],
+        }
+        for pos in stock_perf["positions"]:
+            snapshot_data["stocks"].append({
+                "symbol": pos["symbol"],
+                "name": pos["name"],
+                "shares": pos["shares"],
+                "avg_cost": pos["avg_cost"],
+                "current_price": pos["current_price"],
+                "pnl_usd": pos["pnl_usd"],
+                "pnl_cny": pos["pnl_usd"] * usd_cny,
+                "pnl_pct": pos["pnl_pct"],
+            })
+        for pos in gold_perf["positions"]:
+            snapshot_data["gold"].append({
+                "name": pos["name"],
+                "grams": pos["grams"],
+                "avg_cost": pos["avg_cost"],
+                "current_price": pos["current_price"],
+                "pnl_cny": pos["pnl_cny"],
+                "pnl_pct": pos["pnl_pct"],
+            })
+        cash = portfolio.get("cash", {})
+        cash_cny = cash.get("CNY", 0) + cash.get("SGD", 0) * sgd_cny
+        total_cny = (stock_perf["total_value_usd"] * usd_cny
+                     + gold_perf["total_value_cny"] + cash_cny)
+        total_pnl = stock_perf["total_pnl_usd"] * usd_cny + gold_perf["total_pnl_cny"]
+        snapshot_data["total_cny"] = total_cny
+        snapshot_data["total_pnl_cny"] = total_pnl
+        with open(snapshot_path, "w", encoding="utf-8") as f:
+            json.dump(snapshot_data, f, ensure_ascii=False, indent=2)
+        print(f"Snapshot saved to {snapshot_path}")
+        return 0
 
     # --charts: generate chart PNGs locally and exit (for preview)
     if charts_only:
