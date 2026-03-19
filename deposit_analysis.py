@@ -727,11 +727,28 @@ def main() -> int:
         print(f"Fetching stock prices for: {', '.join(symbols)}")
     stock_prices = fetch_stock_prices(symbols)
 
-    # Abort if any stock price failed after retries
+    # Handle failed price fetches
     failed_symbols = [s for s in symbols if stock_prices.get(s, 0) == 0.0]
     if failed_symbols:
-        print(f"Error: failed to fetch prices for {', '.join(failed_symbols)} after retries. Aborting.", file=sys.stderr)
-        return 1
+        # Try to fill from last history entry
+        history = load_history()
+        if history:
+            last = history[-1]
+            for s in failed_symbols:
+                if s in last.get("stocks", {}):
+                    # Reconstruct price from P&L data and portfolio
+                    pos = next((p for p in portfolio["stocks"]["positions"] if p["symbol"] == s), None)
+                    if pos:
+                        batch_cost = sum(b["shares"] * b["cost_price"] for b in pos["batches"])
+                        batch_shares = sum(b["shares"] for b in pos["batches"])
+                        avg = batch_cost / batch_shares if batch_shares else 0
+                        pnl_pct = last["stocks"][s].get("pnl_pct", 0)
+                        stock_prices[s] = avg * (1 + pnl_pct / 100)
+                        print(f"Using last known price for {s}: ${stock_prices[s]:.2f}")
+        still_failed = [s for s in symbols if stock_prices.get(s, 0) == 0.0]
+        if still_failed:
+            print(f"Error: failed to fetch prices for {', '.join(still_failed)} after retries. Aborting.", file=sys.stderr)
+            return 1
 
     # Fetch gold price
     print("Fetching gold price...")
