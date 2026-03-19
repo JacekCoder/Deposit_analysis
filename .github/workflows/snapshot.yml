@@ -34,12 +34,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          PROFILE="${{ github.event.inputs.profile }}"
-          if [ "$PROFILE" = "default" ]; then
-            git add snapshot.json
-          else
-            git add "snapshot_${PROFILE}.json"
-          fi
+          git add snapshot*.json history*.json
           git diff --cached --quiet || git commit -m "Update live snapshot (${{ github.event.inputs.profile }}) [skip ci]"
-          git pull --rebase
+          git pull --rebase || true
           git push

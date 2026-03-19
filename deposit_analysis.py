@@ -727,16 +727,29 @@ def main() -> int:
         print(f"Fetching stock prices for: {', '.join(symbols)}")
     stock_prices = fetch_stock_prices(symbols)
 
-    # Handle failed price fetches
+    # Handle failed price fetches — try individual fetches as fallback
     failed_symbols = [s for s in symbols if stock_prices.get(s, 0) == 0.0]
     if failed_symbols:
-        # Try to fill from last history entry
+        print(f"Retrying failed symbols individually: {', '.join(failed_symbols)}")
+        for s in failed_symbols:
+            try:
+                t = yf.Ticker(s)
+                info = t.fast_info
+                price = getattr(info, "last_price", 0) or 0
+                if price > 0:
+                    stock_prices[s] = float(price)
+                    print(f"  {s}: ${price:.2f} (via fast_info)")
+            except Exception as exc:
+                print(f"  {s}: fast_info failed: {exc}")
+
+    # Still failed? Try history fallback
+    failed_symbols = [s for s in symbols if stock_prices.get(s, 0) == 0.0]
+    if failed_symbols:
         history = load_history()
         if history:
             last = history[-1]
             for s in failed_symbols:
                 if s in last.get("stocks", {}):
-                    # Reconstruct price from P&L data and portfolio
                     pos = next((p for p in portfolio["stocks"]["positions"] if p["symbol"] == s), None)
                     if pos:
                         batch_cost = sum(b["shares"] * b["cost_price"] for b in pos["batches"])
@@ -744,10 +757,10 @@ def main() -> int:
                         avg = batch_cost / batch_shares if batch_shares else 0
                         pnl_pct = last["stocks"][s].get("pnl_pct", 0)
                         stock_prices[s] = avg * (1 + pnl_pct / 100)
-                        print(f"Using last known price for {s}: ${stock_prices[s]:.2f}")
+                        print(f"  {s}: ${stock_prices[s]:.2f} (from history fallback)")
         still_failed = [s for s in symbols if stock_prices.get(s, 0) == 0.0]
         if still_failed:
-            print(f"Error: failed to fetch prices for {', '.join(still_failed)} after retries. Aborting.", file=sys.stderr)
+            print(f"Error: failed to fetch prices for {', '.join(still_failed)} after all retries. Aborting.", file=sys.stderr)
             return 1
 
     # Fetch gold price
